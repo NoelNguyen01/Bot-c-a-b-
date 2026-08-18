@@ -54,7 +54,8 @@ class DebtView(discord.ui.View):
 
     @discord.ui.button(label="🟢 Tao chuyển khoản rồi", style=discord.ButtonStyle.success)
     async def paid_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-        if interaction.user.id not in [self.debtor.id, self.creditor.id]:
+        is_admin = interaction.user.guild_permissions.administrator
+        if interaction.user.id not in [self.debtor.id, self.creditor.id] and not is_admin:
             await interaction.response.send_message("Mày không có quyền bấm nút này nha con!", ephemeral=True)
             return
         
@@ -73,8 +74,9 @@ class DebtView(discord.ui.View):
 
     @discord.ui.button(label="🔴 Chưa thấy tiền, đòi tiếp!", style=discord.ButtonStyle.danger)
     async def urge_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-        if interaction.user.id != self.creditor.id:
-            await interaction.response.send_message("Chỉ chủ nợ mới được đòi tiếp!", ephemeral=True)
+        is_admin = interaction.user.guild_permissions.administrator
+        if interaction.user.id != self.creditor.id and not is_admin:
+            await interaction.response.send_message("Chỉ chủ nợ hoặc Admin mới được đòi tiếp!", ephemeral=True)
             return
         
         msg = f"😡 Alo {self.debtor.mention}, mày định quỵt luôn à? Chuyển ngay **{self.amount}k** tiền **{self.reason}** mau!"
@@ -87,21 +89,24 @@ class DebtView(discord.ui.View):
             await interaction.followup.send(msg)
         await interaction.response.send_message("Đã chửi con nợ thành công!", ephemeral=True)
 
-    @discord.ui.button(label="💀 Xóa nợ vì mày quá nghèo", style=discord.ButtonStyle.secondary)
+    @discord.ui.button(label="💀 Xóa nợ (Chủ nợ & Admin)", style=discord.ButtonStyle.secondary)
     async def forgive_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-        if interaction.user.id != self.creditor.id:
-            await interaction.response.send_message("Chỉ chủ nợ mới được phép bố thí!", ephemeral=True)
+        is_admin = interaction.user.guild_permissions.administrator
+        if interaction.user.id != self.creditor.id and not is_admin:
+            await interaction.response.send_message("Chỉ chủ nợ hoặc Admin mới được phép xóa nợ!", ephemeral=True)
             return
         
         self.remove_debt()
         for child in self.children:
             child.disabled = True
-        await interaction.response.edit_message(content=f"💀 Tội nghiệp {self.debtor.mention} quá nghèo rách mồng tơi, {self.creditor.mention} đã từ bi hỉ xả xóa nợ **{self.amount}k** tiền **{self.reason}** như một ân huệ.", embed=None, view=self)
+
+        actor = f"Admin {interaction.user.mention}" if (is_admin and interaction.user.id != self.creditor.id) else self.creditor.mention
+        await interaction.response.edit_message(content=f"💀 Tội nghiệp {self.debtor.mention} quá nghèo rách mồng tơi, {actor} đã từ bi hỉ xả xóa nợ **{self.amount}k** tiền **{self.reason}**.", embed=None, view=self)
         
         await send_log_to_admin(
             interaction.guild,
-            title="💀 [SỔ NỢ] XÓA NỢ BỐ THÍ",
-            description=f"Chủ nợ {self.creditor.mention} đã xóa khoản nợ **{self.amount}k** cho {self.debtor.mention}.",
+            title="💀 [SỔ NỢ] XÓA NỢ",
+            description=f"{actor} đã xóa khoản nợ **{self.amount}k** cho {self.debtor.mention}.",
             color=discord.Color.dark_grey(),
             fields=[("Lý do nợ", self.reason, True)]
         )
@@ -230,7 +235,7 @@ class TrollCog(commands.Cog):
 
         embed.add_field(
             name="⚙️ 7. Lệnh Quản Trị (Dành Cho Admin 🔒)",
-            value="• `/set_admin_log #channel`: Cài đặt kênh bí mật giám sát toàn bộ hoạt động & danh tính nặc danh.\n• `/set_confession #channel`: Cài đặt kênh riêng tiếp nhận thư nặc danh.\n• `/set_welcome #channel`: Cài đặt kênh chào mừng & tiễn thành viên.\n• `/set_autorole @role`: Tự động cấp vai trò cho người mới.\n• `/set_rule <nội_dung>`: Thêm nội quy riêng cho Server.",
+            value="• `/xoa_no @user`: Admin xóa toàn bộ nợ của một người.\n• `/clear_so_no`: Admin xé toàn bộ sổ nợ của Server.\n• `/set_admin_log #channel`: Cài đặt kênh bí mật giám sát toàn bộ hoạt động.\n• `/set_confession #channel`: Cài đặt kênh riêng tiếp nhận thư nặc danh.\n• `/set_welcome #channel`: Cài đặt kênh chào mừng & tiễn thành viên.\n• `/set_autorole @role`: Tự động cấp vai trò cho người mới.\n• `/set_rule <nội_dung>`: Thêm nội quy riêng cho Server.",
             inline=False
         )
 
@@ -260,6 +265,46 @@ class TrollCog(commands.Cog):
             title="⚙️ [CÀI ĐẶT] THIẾT LẬP KÊNH NẶC DANH",
             description=f"Admin {interaction.user.mention} đã đổi kênh nhận thư nặc danh sang {channel.mention}.",
             color=discord.Color.gold()
+        )
+
+    @app_commands.command(name="xoa_no", description="Admin xóa toàn bộ nợ của một thành viên (Admin)")
+    @app_commands.default_permissions(administrator=True)
+    async def xoa_no(self, interaction: discord.Interaction, con_no: discord.Member):
+        user_perms = interaction.user.guild_permissions
+        if not (user_perms.administrator or user_perms.manage_guild):
+            await interaction.response.send_message("❌ Mày phải có quyền Admin mới được dùng lệnh này!", ephemeral=True)
+            return
+
+        debts = load_json(DEBTS_FILE)
+        debtor_id = str(con_no.id)
+        if debtor_id in debts:
+            del debts[debtor_id]
+            save_json(DEBTS_FILE, debts)
+            await interaction.response.send_message(f"✅ Admin {interaction.user.mention} đã dùng quyền lực xóa sạch toàn bộ nợ nần cho {con_no.mention}!", ephemeral=False)
+            await send_log_to_admin(
+                interaction.guild,
+                title="💀 [ADMIN] XÓA NỢ THÀNH VIÊN",
+                description=f"Admin {interaction.user.mention} đã xóa toàn bộ nợ của {con_no.mention}.",
+                color=discord.Color.gold()
+            )
+        else:
+            await interaction.response.send_message(f"{con_no.mention} hiện tại không có khoản nợ nào trong sổ.", ephemeral=True)
+
+    @app_commands.command(name="clear_so_no", description="Admin xóa sạch toàn bộ sổ nợ của Server (Admin)")
+    @app_commands.default_permissions(administrator=True)
+    async def clear_so_no(self, interaction: discord.Interaction):
+        user_perms = interaction.user.guild_permissions
+        if not (user_perms.administrator or user_perms.manage_guild):
+            await interaction.response.send_message("❌ Mày phải có quyền Admin mới được dùng lệnh này!", ephemeral=True)
+            return
+
+        save_json(DEBTS_FILE, {})
+        await interaction.response.send_message(f"🧹 Admin {interaction.user.mention} đã xé toàn bộ sổ nợ! Giang hồ server nay đã hoàn toàn sạch bóng quân nợ!", ephemeral=False)
+        await send_log_to_admin(
+            interaction.guild,
+            title="🧹 [ADMIN] RESET TOÀN BỘ SỔ NỢ",
+            description=f"Admin {interaction.user.mention} đã xóa sạch dữ liệu sổ nợ của cả Server.",
+            color=discord.Color.red()
         )
 
     @app_commands.command(name="rule", description="Xem 10 điều nội quy của Server")
