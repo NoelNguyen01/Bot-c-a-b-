@@ -67,7 +67,11 @@ class DebtView(discord.ui.View):
             await interaction.response.send_message("Chỉ chủ nợ mới được đòi tiếp!", ephemeral=True)
             return
         
-        await interaction.channel.send(f"😡 Alo {self.debtor.mention}, mày định quỵt luôn à? Chuyển ngay **{self.amount}k** tiền **{self.reason}** mau!")
+        msg = f"😡 Alo {self.debtor.mention}, mày định quỵt luôn à? Chuyển ngay **{self.amount}k** tiền **{self.reason}** mau!"
+        try:
+            await interaction.channel.send(msg)
+        except Exception:
+            await interaction.followup.send(msg)
         await interaction.response.send_message("Đã chửi con nợ thành công!", ephemeral=True)
 
     @discord.ui.button(label="💀 Xóa nợ vì mày quá nghèo", style=discord.ButtonStyle.secondary)
@@ -104,8 +108,13 @@ class NemDaModal(discord.ui.Modal, title='Ném đá giấu tay'):
         )
         embed.set_author(name=author_name)
         
-        if interaction.channel:
-            await interaction.channel.send(embed=embed)
+        try:
+            if interaction.channel:
+                await interaction.channel.send(embed=embed)
+            else:
+                await interaction.followup.send(embed=embed)
+        except discord.Forbidden:
+            await interaction.followup.send(embed=embed)
 
 
 class TrollCog(commands.Cog):
@@ -353,12 +362,21 @@ class TrollCog(commands.Cog):
             "{tag} mày chết à mà không trả lời?"
         ]
         
-        await interaction.response.send_message(f"Bắt đầu quy trình làm phiền {user.name}...", ephemeral=True)
+        await interaction.response.send_message(f"⚡ Bắt đầu quy trình réo tên {user.mention} ({so_lan} lần)...", ephemeral=True)
         
         for _ in range(so_lan):
             prefix = random.choice(prefixes).format(tag=user.mention)
-            if interaction.channel:
-                await interaction.channel.send(f"{prefix} - {noi_dung}")
+            msg_content = f"{prefix} - {noi_dung}"
+            try:
+                if interaction.channel:
+                    await interaction.channel.send(msg_content)
+                else:
+                    await interaction.followup.send(msg_content)
+            except discord.Forbidden:
+                # Nếu bot bị thiếu quyền send trong kênh, fallback qua followup webhook
+                await interaction.followup.send(msg_content)
+            except Exception:
+                await interaction.followup.send(msg_content)
             await asyncio.sleep(1.2)
 
 
