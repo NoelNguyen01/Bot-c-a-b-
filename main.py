@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import asyncio
 import logging
 import os
@@ -26,8 +27,11 @@ class TrollBot(commands.Bot):
     """Lớp Bot chính kế thừa từ commands.Bot của discord.py 2.x"""
 
     def __init__(self) -> None:
-        # Bật toàn bộ Intents bao gồm members, message_content, voice_states
-        intents = discord.Intents.all()
+        # Sử dụng default intents và chỉ bật các intent cần thiết (không cần Presence Intent)
+        intents = discord.Intents.default()
+        intents.message_content = True
+        intents.members = True
+        
         super().__init__(
             command_prefix="!",
             intents=intents,
@@ -54,7 +58,6 @@ class TrollBot(commands.Bot):
         self, interaction: discord.Interaction, error: app_commands.AppCommandError
     ) -> None:
         """Xử lý lỗi toàn cục cho các Slash Commands"""
-        # Xử lý khi bị cooldown
         if isinstance(error, app_commands.CommandOnCooldown):
             retry_after = error.retry_after
             msg = f"Từ từ thôi con lợn, spam lắm Discord nó khóa mồm tao bây giờ! Đợi {retry_after:.0f} giây nữa đi."
@@ -64,7 +67,6 @@ class TrollBot(commands.Bot):
                 await interaction.response.send_message(msg, ephemeral=True)
             return
 
-        # Xử lý các lỗi khác
         command_name = interaction.command.name if interaction.command else "Không rõ"
         logger.error(f"Lỗi khi thực thi lệnh /{command_name}: {error}", exc_info=True)
         error_msg = "Có lỗi xảy ra khi thực hiện lệnh rồi con lợn ơi!"
@@ -77,7 +79,6 @@ class TrollBot(commands.Bot):
         """Sự kiện kích hoạt khi bot sẵn sàng hoạt động"""
         logger.info(f"Bot đã đăng nhập thành công: {self.user} (ID: {self.user.id})")
 
-        # Đồng bộ Slash Commands với Discord API
         try:
             synced = await self.tree.sync()
             logger.info(f"Đã đồng bộ thành công {len(synced)} Slash Commands.")
