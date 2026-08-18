@@ -112,14 +112,15 @@ class TrollBot(commands.Bot):
         except Exception:
             pass
 
-        # Đồng bộ danh sách lệnh lên toàn cầu và từng Guild để cập nhật NGAY LẬP TỨC
+        # Xóa sạch các lệnh guild rác để không bao giờ bị trùng lặp (x2 lệnh)
         for guild in self.guilds:
             try:
-                self.tree.copy_global_to(guild=guild)
+                self.tree.clear_commands(guild=guild)
                 await self.tree.sync(guild=guild)
             except Exception as e:
-                logger.error(f"Lỗi sync guild {guild.name}: {e}")
+                logger.error(f"Lỗi clear guild {guild.name}: {e}")
 
+        # Đồng bộ danh sách lệnh Global duy nhất
         synced = await self.tree.sync()
         logger.info(f"⚡ Đã đồng bộ sạch sẽ {len(synced)} lệnh duy nhất!")
 
