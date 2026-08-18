@@ -27,10 +27,9 @@ class TrollBot(commands.Bot):
     """Lớp Bot chính kế thừa từ commands.Bot của discord.py 2.x"""
 
     def __init__(self) -> None:
-        # Sử dụng default intents và chỉ bật các intent cần thiết (không cần Presence Intent)
+        # Sử dụng default intents (KHÔNG đòi hỏi Privileged Intents)
+        # Giúp bot chạy ngay lập tức mà không bao giờ bị lỗi PrivilegedIntentsRequired
         intents = discord.Intents.default()
-        intents.message_content = True
-        intents.members = True
         
         super().__init__(
             command_prefix="!",
@@ -86,9 +85,9 @@ class TrollBot(commands.Bot):
             logger.error(f"Lỗi khi đồng bộ Slash Commands: {e}", exc_info=True)
 
         logger.info(f"Đang kết nối tới {len(self.guilds)} máy chủ Discord.")
-        logger.info("==========================================")
-        logger.info("       BOT ĐÃ SẴN SÀNG QUẬY PHÁ!          ")
-        logger.info("==========================================")
+        print("\n" + "="*50)
+        print("       🤡 BOT ĐÃ SẴN SÀNG QUẬY PHÁ! 🤡       ")
+        print("="*50 + "\n")
 
 
 async def main() -> None:
