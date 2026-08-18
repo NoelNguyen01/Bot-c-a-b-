@@ -7,6 +7,7 @@ import json
 import os
 import logging
 from cogs.admin_log import send_log_to_admin
+from cogs.quotes_data import JOIN_MESSAGES, LEAVE_MESSAGES, VC_JOIN_MESSAGES, VC_LEAVE_MESSAGES
 
 logger = logging.getLogger("Welcome")
 
@@ -33,28 +34,10 @@ class Welcome(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.cache = load_config()
-        self.join_messages = [
-            "Chào mừng con mồi mới {tag} đã gia nhập chuồng hề. 🤡",
-            "Ơ kìa {tag} lạc vào chuồng thú rồi à? Chào mừng nhé! 🎪",
-            "Thêm một nạn nhân mới... à nhầm, thêm một thành viên mới {tag}! Chào mừng! 🎉",
-            "Hú hú {tag} ơi! Vào chuồng nhớ chào các đại ca nhé! 🐒"
-        ]
-        self.leave_messages = [
-            "Tiễn vong **{name}**, không chịu nổi nhiệt đã bấm nút biến. 💨",
-            "**{name}** đã sủi rồi nhé cả nhà, F trong chat. ⚰️",
-            "Một con chim đã rời đàn... **{name}** bay đi không một lời từ biệt. 🕊️"
-        ]
-        self.vc_join_messages = [
-            "Chào mừng đại ca {mention} đã mò mặt vào chuồng. 🎙️",
-            "{mention} đã xuất hiện! Huyền thoại trở lại! 👑",
-            "Ơ kìa {mention} hôm nay cũng rảnh à? 😏",
-            "Cả lò chú ý: {mention} đã vào phòng! 🚨"
-        ]
-        self.vc_leave_messages = [
-            "{mention} lại sủi đi ỉa rồi à? 💩",
-            "{mention} đã cúp đuôi chạy trốn. 🏃",
-            "{mention} biến mất nhanh hơn crush rep tin nhắn mày. 💨"
-        ]
+        self.join_messages = JOIN_MESSAGES
+        self.leave_messages = LEAVE_MESSAGES
+        self.vc_join_messages = VC_JOIN_MESSAGES
+        self.vc_leave_messages = VC_LEAVE_MESSAGES
 
     def get_welcome_channel(self, guild: discord.Guild):
         guild_id = str(guild.id)
@@ -206,7 +189,7 @@ class Welcome(commands.Cog):
             except Exception as e:
                 logger.error(f"Lỗi cấp Auto-Role: {e}")
 
-        # 2. Gửi tin nhắn chào mừng bựa
+        # 2. Gửi tin nhắn chào mừng bựa từ kho 100 câu
         channel = self.get_welcome_channel(member.guild)
         if channel and hasattr(channel, "send"):
             msg = random.choice(self.join_messages).format(tag=member.mention)

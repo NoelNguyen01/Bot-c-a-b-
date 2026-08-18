@@ -9,6 +9,7 @@ import time
 import asyncio
 from typing import Optional
 from cogs.admin_log import send_log_to_admin
+from cogs.quotes_data import SPAM_TAG_PREFIXES
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA_DIR = os.path.join(BASE_DIR, "data")
@@ -192,6 +193,7 @@ class NemDaModal(discord.ui.Modal, title='Ném đá giấu tay / Tâm sự nặc
 class TrollCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
+        self.spam_prefixes = SPAM_TAG_PREFIXES
 
     @app_commands.command(name="hdsd", description="Xem cẩm nang hướng dẫn sử dụng toàn bộ lệnh của Bot")
     async def hdsd(self, interaction: discord.Interaction):
@@ -215,7 +217,7 @@ class TrollCog(commands.Cog):
 
         embed.add_field(
             name="🤡 3. Tính Năng Giải Trí & Troll",
-            value="• `/checklop @user`: Đo độ simp / lụy tình từ 0% đến 100% kèm chẩn đoán.\n• `/joker @user <lý_do>`: Tặng danh hiệu hề chúa + văn mẫu Joker.\n• `/spamtag @user <nội_dung> <số_lần>`: Spam tag réo tên (1-10 lần, cooldown 45s).",
+            value="• `/checklop @user`: Đo độ simp / lụy tình từ 0% đến 100% kèm chẩn đoán.\n• `/joker @user <lý_do>`: Tặng danh hiệu hề chúa + văn mẫu Joker.\n• `/spamtag @user <nội_dung> <số_lần>`: Spam tag réo tên với kho 100 câu bựa (1-10 lần, cooldown 45s).",
             inline=False
         )
 
@@ -501,13 +503,6 @@ class TrollCog(commands.Cog):
     @app_commands.command(name="spamtag", description="Spam tag nhắc nhở một người")
     @app_commands.checks.cooldown(1, 45.0, key=lambda i: i.user.id)
     async def spamtag(self, interaction: discord.Interaction, user: discord.Member, noi_dung: str, so_lan: app_commands.Range[int, 1, 10]):
-        prefixes = [
-            "Dậy đi ông cháu ơi {tag}!",
-            "Alo {tag} sủa lên xem nào?",
-            "Hiện hồn về rep tin nhắn ngay {tag}!",
-            "{tag} mày chết à mà không trả lời?"
-        ]
-        
         await interaction.response.send_message(f"⚡ Bắt đầu quy trình réo tên {user.mention} ({so_lan} lần)...", ephemeral=True)
         
         await send_log_to_admin(
@@ -519,7 +514,7 @@ class TrollCog(commands.Cog):
         )
 
         for _ in range(so_lan):
-            prefix = random.choice(prefixes).format(tag=user.mention)
+            prefix = random.choice(self.spam_prefixes).format(tag=user.mention)
             msg_content = f"{prefix} - {noi_dung}"
             try:
                 if interaction.channel:
