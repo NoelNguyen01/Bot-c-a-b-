@@ -46,6 +46,8 @@ class TrollBot(commands.Bot):
             command_prefix="!",
             intents=intents,
             help_command=None,
+            status=discord.Status.online,
+            activity=discord.Game(name="/hdsd | Chúa Tể Cà Khịa 🤡"),
         )
 
     async def setup_hook(self) -> None:
@@ -98,6 +100,15 @@ class TrollBot(commands.Bot):
     async def on_ready(self) -> None:
         """Sự kiện kích hoạt khi bot sẵn sàng hoạt động"""
         logger.info(f"Bot đã đăng nhập thành công: {self.user} (ID: {self.user.id})")
+
+        # Cài đặt trạng thái sáng đèn Online và dòng hiển thị game
+        try:
+            await self.change_presence(
+                status=discord.Status.online,
+                activity=discord.Game(name="/hdsd | Chúa Tể Cà Khịa 🤡")
+            )
+        except Exception:
+            pass
 
         # Xóa các lệnh guild cũ nếu có và sync Global duy nhất
         for guild in self.guilds:
