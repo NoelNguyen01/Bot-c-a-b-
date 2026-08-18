@@ -48,7 +48,6 @@ class TrollBot(commands.Bot):
                     except Exception as e:
                         logger.error(f"Lỗi khi nạp Cog {cog_name}: {e}", exc_info=True)
 
-        # Đăng ký xử lý lỗi toàn cục cho app_commands (Slash Commands)
         self.tree.on_error = self.on_tree_error
 
     async def on_tree_error(
@@ -76,19 +75,17 @@ class TrollBot(commands.Bot):
         """Sự kiện kích hoạt khi bot sẵn sàng hoạt động"""
         logger.info(f"Bot đã đăng nhập thành công: {self.user} (ID: {self.user.id})")
 
-        # Đồng bộ TỨC THÌ (Instant Sync) cho từng Server mà bot đang tham gia (hiện lệnh ngay trong 1 giây)
+        # Xóa sạch các lệnh trùng lặp trên từng server và chỉ đồng bộ 1 bản duy nhất
         for guild in self.guilds:
             try:
-                self.tree.copy_global_to(guild=guild)
-                synced = await self.tree.sync(guild=guild)
-                logger.info(f"⚡ Đã đồng bộ tức thì {len(synced)} lệnh cho server: {guild.name}")
+                self.tree.clear_commands(guild=guild)
+                await self.tree.sync(guild=guild)
             except Exception as e:
-                logger.error(f"Lỗi sync guild {guild.name}: {e}")
+                logger.error(f"Lỗi xóa cache guild {guild.name}: {e}")
 
-        try:
-            await self.tree.sync()
-        except Exception:
-            pass
+        # Đồng bộ danh sách lệnh chuẩn
+        synced = await self.tree.sync()
+        logger.info(f"⚡ Đã đồng bộ sạch sẽ {len(synced)} lệnh duy nhất!")
 
         logger.info(f"Đang kết nối tới {len(self.guilds)} máy chủ Discord.")
         print("\n" + "="*50)

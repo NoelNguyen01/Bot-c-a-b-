@@ -10,6 +10,7 @@ import asyncio
 from typing import Optional
 
 DEBTS_FILE = "data/debts.json"
+CLOWN_ICON_URL = "https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/1f921.png"
 
 def load_debts():
     if not os.path.exists(DEBTS_FILE):
@@ -52,7 +53,7 @@ class DebtView(discord.ui.View):
         self.remove_debt()
         for child in self.children:
             child.disabled = True
-        await interaction.response.edit_message(content=f"✅ {self.debtor.mention} đã trả xong {self.amount}k tiền {self.reason} cho {self.creditor.mention}.", embed=None, view=self)
+        await interaction.response.edit_message(content=f"✅ {self.debtor.mention} đã trả xong **{self.amount}k** tiền **{self.reason}** cho {self.creditor.mention}.", embed=None, view=self)
 
     @discord.ui.button(label="🔴 Chưa thấy tiền, đòi tiếp!", style=discord.ButtonStyle.danger)
     async def urge_button(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -60,8 +61,8 @@ class DebtView(discord.ui.View):
             await interaction.response.send_message("Chỉ chủ nợ mới được đòi tiếp!", ephemeral=True)
             return
         
-        await interaction.channel.send(f"😡 Alo {self.debtor.mention}, mày định quỵt luôn à? Chuyển ngay {self.amount}k tiền {self.reason} mau!")
-        await interaction.response.send_message("Đã chửi thằng nợ thành công!", ephemeral=True)
+        await interaction.channel.send(f"😡 Alo {self.debtor.mention}, mày định quỵt luôn à? Chuyển ngay **{self.amount}k** tiền **{self.reason}** mau!")
+        await interaction.response.send_message("Đã chửi con nợ thành công!", ephemeral=True)
 
     @discord.ui.button(label="💀 Xóa nợ vì mày quá nghèo", style=discord.ButtonStyle.secondary)
     async def forgive_button(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -72,7 +73,7 @@ class DebtView(discord.ui.View):
         self.remove_debt()
         for child in self.children:
             child.disabled = True
-        await interaction.response.edit_message(content=f"💀 Tội nghiệp {self.debtor.mention} quá nghèo rách mồng tơi, {self.creditor.mention} đã từ bi hỉ xả xóa nợ {self.amount}k tiền {self.reason} như một ân huệ.", embed=None, view=self)
+        await interaction.response.edit_message(content=f"💀 Tội nghiệp {self.debtor.mention} quá nghèo rách mồng tơi, {self.creditor.mention} đã từ bi hỉ xả xóa nợ **{self.amount}k** tiền **{self.reason}** như một ân huệ.", embed=None, view=self)
 
 
 class NemDaModal(discord.ui.Modal, title='Ném đá giấu tay'):
@@ -87,11 +88,11 @@ class NemDaModal(discord.ui.Modal, title='Ném đá giấu tay'):
     async def on_submit(self, interaction: discord.Interaction):
         await interaction.response.send_message('Đã gửi thành công, không ai biết là mày đâu 🤫', ephemeral=True)
         
-        names = ['Kẻ giấu mặt 🥷', 'Ninja làng Lá 🍃']
+        names = ['Kẻ giấu mặt 🥷', 'Ninja làng Lá 🍃', 'Bóng ma học đường 👻']
         author_name = random.choice(names)
         
         embed = discord.Embed(
-            title="Thư nặc danh",
+            title="📜 Thư nặc danh bí mật",
             description=self.confession.value,
             color=discord.Color.dark_gray()
         )
@@ -155,7 +156,7 @@ class TrollCog(commands.Cog):
         )
 
         embed.set_footer(text="Gõ / để xem danh sách lệnh gợi ý trực tiếp của Discord!")
-        embed.set_thumbnail(url="https://i.imgur.com/gO0t2Gk.png")
+        embed.set_thumbnail(url=CLOWN_ICON_URL)
         
         await interaction.response.send_message(embed=embed)
 
@@ -183,7 +184,7 @@ class TrollCog(commands.Cog):
         
         embed = discord.Embed(
             title="⚠️ CẢNH BÁO NỢ NẦN ⚠️",
-            description=f"Alo {con_no.mention}, mày nợ bố {so_tien}k tiền {ly_do} bao lâu rồi? Trả mau không bố đấm cho không trượt phát nào!",
+            description=f"Alo {con_no.mention}, mày nợ bố **{so_tien}k** tiền **{ly_do}** bao lâu rồi? Trả mau không bố đấm cho không trượt phát nào!",
             color=discord.Color.red()
         )
         embed.add_field(name="Chủ nợ", value=interaction.user.mention, inline=True)
@@ -272,7 +273,7 @@ class TrollCog(commands.Cog):
             description=f"Gửi tặng {user.mention} vì lý do: **{ly_do}**\n\n*{random.choice(quotes)}*",
             color=discord.Color.from_rgb(128, 0, 128)
         )
-        embed.set_thumbnail(url="https://i.imgur.com/gO0t2Gk.png")
+        embed.set_thumbnail(url=CLOWN_ICON_URL)
         await interaction.response.send_message(content=user.mention, embed=embed)
 
     @app_commands.command(name="nemda", description="Ném đá giấu tay (Gửi ẩn danh)")
