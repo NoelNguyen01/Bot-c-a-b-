@@ -2,11 +2,11 @@
 import discord
 from discord.ext import commands
 from discord import app_commands
+from typing import Union
 import random
 import json
 import os
 
-# Đường dẫn tuyệt đối an toàn cho cả máy local và Cloud (Render / Discloud)
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA_DIR = os.path.join(BASE_DIR, "data")
 CONFIG_FILE = os.path.join(DATA_DIR, "config.json")
@@ -53,11 +53,14 @@ class Welcome(commands.Cog):
         ]
 
     @app_commands.command(name="set_welcome", description="Cài đặt kênh gửi tin nhắn chào mừng/tiễn thành viên")
-    async def set_welcome(self, interaction: discord.Interaction, channel: discord.TextChannel):
-        # Cho phép Admin hoặc người có quyền Quản lý máy chủ / Quản lý kênh
+    async def set_welcome(
+        self, 
+        interaction: discord.Interaction, 
+        channel: Union[discord.TextChannel, discord.NewsChannel, discord.VoiceChannel, discord.Thread]
+    ):
         user_perms = interaction.user.guild_permissions
         if not (user_perms.administrator or user_perms.manage_guild or user_perms.manage_channels):
-            await interaction.response.send_message("❌ Mày phải có quyền Quản trị viên (Admin) hoặc Quản lý kênh mới được dùng lệnh này nha con!", ephemeral=True)
+            await interaction.response.send_message("❌ Mày phải có quyền Quản trị viên (Admin) hoặc Quản lý kênh mới được dùng lệnh này nha!", ephemeral=True)
             return
 
         try:
@@ -81,7 +84,7 @@ class Welcome(commands.Cog):
         # Kiểm tra xem bot có quyền cấp role này không
         if role >= interaction.guild.me.top_role:
             await interaction.response.send_message(
-                f"❌ Vai trò {role.mention} cao hơn hoặc bằng vai trò cao nhất của Bot!\n👉 **Cách sửa:** Vào *Cài đặt Server -> Vai trò*, kéo vai trò của Bot lên **trên** vai trò {role.name} nhé.",
+                f"❌ Vai trò {role.mention} cao hơn hoặc bằng vai trò của Bot!\n👉 **Cách sửa:** Vào *Cài đặt Server -> Vai trò*, kéo vai trò của Bot lên **trên** vai trò {role.name} nhé.",
                 ephemeral=True
             )
             return
