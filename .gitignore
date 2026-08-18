@@ -1,0 +1,7 @@
+.env
+__pycache__/
+*.pyc
+*.pyo
+*.mp3
+*.wav
+data/debts.json
