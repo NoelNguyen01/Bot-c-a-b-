@@ -60,7 +60,7 @@ class TrollBot(commands.Bot):
         cogs_dir = Path(__file__).parent / "cogs"
         if cogs_dir.exists() and cogs_dir.is_dir():
             for file in cogs_dir.glob("*.py"):
-                if file.stem != "__init__":
+                if file.stem not in ["__init__", "quotes_data"]:
                     cog_name = f"cogs.{file.stem}"
                     try:
                         await self.load_extension(cog_name)
@@ -112,17 +112,17 @@ class TrollBot(commands.Bot):
         except Exception:
             pass
 
-        # Xóa sạch các lệnh guild rác để không bao giờ bị trùng lặp (x2 lệnh)
+        # Đồng bộ trực tiếp vào từng Guild để cập nhật NGAY LẬP TỨC 100%
         for guild in self.guilds:
             try:
-                self.tree.clear_commands(guild=guild)
+                self.tree.copy_global_to(guild=guild)
                 await self.tree.sync(guild=guild)
+                logger.info(f"⚡ Đã sync lệnh tức thì cho Server: {guild.name}")
             except Exception as e:
-                logger.error(f"Lỗi clear guild {guild.name}: {e}")
+                logger.error(f"Lỗi sync guild {guild.name}: {e}")
 
-        # Đồng bộ danh sách lệnh Global duy nhất
         synced = await self.tree.sync()
-        logger.info(f"⚡ Đã đồng bộ sạch sẽ {len(synced)} lệnh duy nhất!")
+        logger.info(f"⚡ Đã đồng bộ sạch sẽ {len(synced)} lệnh!")
 
         logger.info(f"Đang kết nối tới {len(self.guilds)} máy chủ Discord.")
         print("\n" + "="*50)

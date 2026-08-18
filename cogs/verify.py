@@ -65,7 +65,7 @@ class VerifyButton(discord.ui.Button):
 
         if not target_role:
             await interaction.response.send_message(
-                "❌ Chưa cấu hình vai trò xác thực! Vui lòng nhờ Admin gõ `/set_verify_role @role` nhé.",
+                "❌ Chưa cấu hình vai trò xác thực! Vui lòng nhờ Admin gõ `!setverifyrole @role` nhé.",
                 ephemeral=True
             )
             return
@@ -131,9 +131,40 @@ class VerifyCog(commands.Cog):
         self.bot = bot
 
     async def cog_load(self):
-        # Đăng ký persistent view để nút bấm chạy 24/7 không bao giờ hết hạn
         self.bot.add_view(VerifyView())
 
+    # ================= LỆNH NHANH BẰNG DẤU CHẤM THAN (!) =================
+    @commands.command(name="sendverify")
+    @commands.has_permissions(administrator=True)
+    async def cmd_sendverify(self, ctx):
+        """Admin chỉ cần gõ !sendverify ngay trong kênh là nút bấm hiện ra ngay!"""
+        embed = discord.Embed(
+            title="🛡️ XÁC THỰC THÀNH VIÊN — MỞ KHÓA SERVER 🔓",
+            description="Chào mừng bạn đến với Server!\n\nVui lòng bấm vào nút bên dưới để xác thực danh tính và mở khóa toàn bộ các kênh trò chuyện.\n\n👇 **Bấm nút màu xanh bên dưới để vào Server ngay:**",
+            color=discord.Color.green()
+        )
+        embed.set_footer(text="Hệ Thống Xác Thực Tự Động 24/7 • Chúc bạn chơi vui vẻ!")
+        embed.set_thumbnail(url="https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/1f510.png")
+        
+        await ctx.send(embed=embed, view=VerifyView())
+        try:
+            await ctx.message.delete()
+        except Exception:
+            pass
+
+    @commands.command(name="setverifyrole")
+    @commands.has_permissions(administrator=True)
+    async def cmd_setverifyrole(self, ctx, role: discord.Role):
+        """Admin gõ !setverifyrole @mem bơ để cài vai trò khi xác thực"""
+        config = load_config()
+        guild_id = str(ctx.guild.id)
+        if guild_id not in config:
+            config[guild_id] = {}
+        config[guild_id]["verify_role_id"] = role.id
+        save_config(config)
+        await ctx.send(f"✅ Đã thiết lập vai trò xác thực thành {role.mention}!")
+
+    # ================= SLASH COMMANDS =================
     @app_commands.command(name="set_verify_role", description="Cài đặt vai trò sẽ được cấp khi thành viên bấm nút xác thực (Admin)")
     @app_commands.default_permissions(administrator=True)
     async def set_verify_role(self, interaction: discord.Interaction, role: discord.Role):
