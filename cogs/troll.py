@@ -19,6 +19,8 @@ CLOWN_ICON_URL = "https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x7
 SCROLL_ICON_URL = "https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/1f4dc.png"
 SECRET_ICON_URL = "https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/1f977.png"
 
+MEMORY_CONFESSION_CHANNELS = {}
+
 def load_json(filepath):
     if not os.path.exists(filepath):
         return {}
@@ -130,18 +132,20 @@ class NemDaModal(discord.ui.Modal, title='Ném đá giấu tay / Tâm sự nặc
         # 1. Tìm kênh nhận thư nặc danh
         config = load_json(CONFIG_FILE)
         guild_id = str(interaction.guild_id)
-        target_channel_id = config.get(guild_id, {}).get("confession_channel_id")
+        target_channel_id = config.get(guild_id, {}).get("confession_channel_id") or MEMORY_CONFESSION_CHANNELS.get(guild_id)
         
         target_channel = None
         if target_channel_id and interaction.guild:
             try:
-                target_channel = interaction.guild.get_channel(int(target_channel_id))
+                target_channel = interaction.guild.get_channel(int(target_channel_id)) or await interaction.guild.fetch_channel(int(target_channel_id))
             except Exception:
                 pass
         
+        # Tự động quét kênh có tên 'nặc-danh', 'nặc', 'tam-su', 'confession'
         if not target_channel and interaction.guild:
             for c in interaction.guild.channels:
-                if any(k in c.name.lower() for k in ["nac-danh", "confession", "tam-su", "an-danh", "boc-phot"]):
+                c_name = c.name.lower()
+                if any(k in c_name for k in ["nặc", "nac", "confess", "tâm", "tam", "ẩn", "boc-phot"]):
                     if hasattr(c, "send"):
                         target_channel = c
                         break
@@ -156,7 +160,7 @@ class NemDaModal(discord.ui.Modal, title='Ném đá giấu tay / Tâm sự nặc
         config[guild_id]["confession_count"] = count
         save_json(CONFIG_FILE, config)
 
-        # 3. Gửi thư ẩn danh ra kênh công khai
+        # 3. Gửi thư ẩn danh ra KÊNH NẶC DANH
         embed = discord.Embed(
             title=f"📜 Thư Nặc Danh #{count:03d}",
             description=self.confession.value,
@@ -178,8 +182,8 @@ class NemDaModal(discord.ui.Modal, title='Ném đá giấu tay / Tâm sự nặc
             description=f"Thành viên {interaction.user.mention} vừa gửi **Thư Nặc Danh #{count:03d}**.",
             color=discord.Color.red(),
             fields=[
-                ("Tên & ID người gửi", f"{interaction.user.name} (`{interaction.user.id}`)", True),
-                ("Kênh đăng tải", target_channel.mention if target_channel else "Không rõ", True),
+                ("Người gửi thật", f"{interaction.user.name} (`{interaction.user.id}`)", True),
+                ("Kênh đăng", target_channel.mention if target_channel else "Không rõ", True),
                 ("Nội dung gốc", f"```{self.confession.value}```", False)
             ]
         )
@@ -257,6 +261,7 @@ class TrollCog(commands.Cog):
         if guild_id not in config:
             config[guild_id] = {}
         config[guild_id]["confession_channel_id"] = channel.id
+        MEMORY_CONFESSION_CHANNELS[guild_id] = channel.id
         save_json(CONFIG_FILE, config)
         await interaction.response.send_message(f"✅ Đã thiết lập kênh nhận thư nặc danh tại {channel.mention}!", ephemeral=True)
 

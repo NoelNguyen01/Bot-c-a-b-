@@ -5,10 +5,16 @@ from discord import app_commands
 import json
 import os
 from datetime import datetime
+import logging
+
+logger = logging.getLogger("AdminLog")
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA_DIR = os.path.join(BASE_DIR, "data")
 CONFIG_FILE = os.path.join(DATA_DIR, "config.json")
+
+# Bộ nhớ RAM để lưu ID kênh log nếu file chưa kịp load
+MEMORY_ADMIN_LOGS = {}
 
 def load_config():
     if not os.path.exists(CONFIG_FILE):
@@ -32,19 +38,19 @@ async def send_log_to_admin(guild: discord.Guild, title: str, description: str, 
 
     config = load_config()
     guild_id = str(guild.id)
-    channel_id = config.get(guild_id, {}).get("admin_log_channel_id")
+    channel_id = config.get(guild_id, {}).get("admin_log_channel_id") or MEMORY_ADMIN_LOGS.get(guild_id)
 
     channel = None
     if channel_id:
         try:
-            channel = guild.get_channel(int(channel_id))
+            channel = guild.get_channel(int(channel_id)) or await guild.fetch_channel(int(channel_id))
         except Exception:
             pass
 
-    # Tự động tìm kênh có tên admin-log, bot-log, log nếu chưa set
+    # Tự động tìm kênh có tên admin, log, nhat-ky nếu chưa set
     if not channel:
         for c in guild.channels:
-            if any(name in c.name.lower() for name in ["admin-log", "bot-log", "log-admin", "nhat-ky", "logs"]):
+            if any(name in c.name.lower() for name in ["admin", "log", "nhat-ky", "nhật-ký", "giám-sát"]):
                 if hasattr(c, "send"):
                     channel = c
                     break
@@ -62,8 +68,9 @@ async def send_log_to_admin(guild: discord.Guild, title: str, description: str, 
         embed.set_footer(text="🔒 Nhật Ký Mật Admin")
         try:
             await channel.send(embed=embed)
-        except Exception:
-            pass
+            logger.info(f"Đã gửi log '{title}' vào kênh {channel.name}")
+        except Exception as e:
+            logger.error(f"Lỗi gửi admin log: {e}")
 
 
 class AdminLogCog(commands.Cog):
@@ -83,6 +90,7 @@ class AdminLogCog(commands.Cog):
         if guild_id not in config:
             config[guild_id] = {}
         config[guild_id]["admin_log_channel_id"] = channel.id
+        MEMORY_ADMIN_LOGS[guild_id] = channel.id
         save_config(config)
 
         await interaction.response.send_message(
