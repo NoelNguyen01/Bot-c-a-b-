@@ -8,6 +8,7 @@ import time
 import random
 import logging
 from typing import Optional
+from cogs.admin_log import send_log_to_admin
 
 logger = logging.getLogger("LevelSystem")
 
@@ -60,7 +61,7 @@ class LevelCog(commands.Cog):
             self.levels[g_id][u_id] = {"xp": 0}
 
         old_xp = self.levels[g_id][u_id].get("xp", 0)
-        new_xp = old_xp + xp_amount
+        new_xp = max(0, old_xp + xp_amount)
         self.levels[g_id][u_id]["xp"] = new_xp
         save_levels(self.levels)
 
@@ -70,7 +71,7 @@ class LevelCog(commands.Cog):
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
-        # Bỏ qua tin nhắn từ bot hoặc tin nhắn riêng (DM)
+        # Bỏ qua tin nhắn từ bot hoặc DM
         if message.author.bot or not message.guild:
             return
 
@@ -78,14 +79,14 @@ class LevelCog(commands.Cog):
         guild_id = message.guild.id
         now = time.time()
 
-        # Cooldown cộng XP chat: 45s / lần
+        # Cooldown chỉ 10 giây để nhận EXP cực nhạy
         key = (guild_id, user_id)
         last_time = self.msg_cooldowns.get(key, 0)
-        if now - last_time < 45:
+        if now - last_time < 10:
             return
 
         self.msg_cooldowns[key] = now
-        gained_xp = random.randint(15, 25)
+        gained_xp = random.randint(15, 30)
         old_lvl, new_lvl, leveled_up = self.add_xp(guild_id, user_id, gained_xp)
         logger.info(f"Cộng {gained_xp} XP cho {message.author.name} (Tổng: {self.levels[str(guild_id)][str(user_id)]['xp']} XP)")
 
@@ -108,10 +109,9 @@ class LevelCog(commands.Cog):
         
         for guild in self.bot.guilds:
             for vc in guild.voice_channels:
-                # Bỏ qua bot và người mute toàn phần
                 real_members = [m for m in vc.members if not m.bot and (not m.voice or not m.voice.self_deaf)]
                 for member in real_members:
-                    gained_xp = random.randint(10, 20)
+                    gained_xp = random.randint(15, 25)
                     old_lvl, new_lvl, leveled_up = self.add_xp(guild.id, member.id, gained_xp)
                     logger.info(f"Cộng {gained_xp} Voice XP cho {member.name}")
                     
@@ -137,9 +137,14 @@ class LevelCog(commands.Cog):
         guild_id = str(interaction.guild_id)
         user_id = str(target.id)
 
+        # Tự động khởi tạo nếu chưa có
+        if guild_id not in self.levels:
+            self.levels[guild_id] = {}
+        if user_id not in self.levels[guild_id]:
+            self.levels[guild_id][user_id] = {"xp": 10}
+            save_levels(self.levels)
+
         guild_levels = self.levels.get(guild_id, {})
-        
-        # Sắp xếp danh sách tính hạng
         sorted_users = sorted(guild_levels.items(), key=lambda x: x[1].get("xp", 0), reverse=True)
         
         rank_pos = "N/A"
@@ -151,7 +156,6 @@ class LevelCog(commands.Cog):
         current_xp = guild_levels.get(user_id, {}).get("xp", 0)
         current_lvl = level_from_xp(current_xp)
 
-        # Tính toán tiến trình XP trong level hiện tại
         xp_current_lvl_base = xp_for_level(current_lvl)
         xp_next_lvl_base = xp_for_level(current_lvl + 1)
         xp_needed_this_level = max(1, xp_next_lvl_base - xp_current_lvl_base)
@@ -186,15 +190,17 @@ class LevelCog(commands.Cog):
         guild_id = str(interaction.guild_id)
         guild_levels = self.levels.get(guild_id, {})
 
-        if not guild_levels or not any(data.get("xp", 0) > 0 for data in guild_levels.values()):
-            await interaction.response.send_message("Chưa có dữ liệu cày cấp nào trong Server. Hãy tích cực nhắn tin và treo Voice nhé!", ephemeral=True)
-            return
+        if not guild_levels:
+            # Tự động gán người gọi lệnh làm mốc đầu tiên
+            self.levels[guild_id] = {str(interaction.user.id): {"xp": 10}}
+            save_levels(self.levels)
+            guild_levels = self.levels[guild_id]
 
         sorted_users = sorted(guild_levels.items(), key=lambda x: x[1].get("xp", 0), reverse=True)
 
         embed = discord.Embed(
             title="🏆 BẢNG PHONG THẦN CÀY CẤP (TOP LEADERBOARD) 🌟",
-            description="Vinh danh những gương mặt vàng trong làng cày cuốc chat & voice của Server:",
+            description="Vinh danh những gương mặt vàng trong làng cày cuốc chat & voice của Server:\n",
             color=discord.Color.gold()
         )
 
@@ -211,6 +217,52 @@ class LevelCog(commands.Cog):
         embed.set_footer(text="Gõ /rank để xem cấp độ của chính bạn!")
         
         await interaction.response.send_message(embed=embed)
+
+    @app_commands.command(name="add_exp", description="Admin cộng điểm EXP thưởng cho một thành viên (Admin)")
+    @app_commands.default_permissions(administrator=True)
+    async def add_exp(self, interaction: discord.Interaction, user: discord.Member, so_xp: int):
+        user_perms = interaction.user.guild_permissions
+        if not (user_perms.administrator or user_perms.manage_guild):
+            await interaction.response.send_message("❌ Mày phải có quyền Admin mới được dùng lệnh này!", ephemeral=True)
+            return
+
+        old_lvl, new_lvl, leveled_up = self.add_xp(interaction.guild_id, user.id, so_xp)
+        total_xp = self.levels[str(interaction.guild_id)][str(user.id)]["xp"]
+        
+        await interaction.response.send_message(f"✅ Đã cộng thành công **+{so_xp:,} EXP** cho {user.mention} (Tổng: **{total_xp:,} EXP** - Level **{new_lvl}**)!")
+        
+        await send_log_to_admin(
+            interaction.guild,
+            title="✨ [ADMIN] CỘNG THƯỞNG EXP",
+            description=f"Admin {interaction.user.mention} đã cộng **+{so_xp:,} EXP** cho {user.mention}.",
+            color=discord.Color.purple()
+        )
+
+    @app_commands.command(name="set_level", description="Admin cài đặt thẳng Level cho một thành viên (Admin)")
+    @app_commands.default_permissions(administrator=True)
+    async def set_level(self, interaction: discord.Interaction, user: discord.Member, level: int):
+        user_perms = interaction.user.guild_permissions
+        if not (user_perms.administrator or user_perms.manage_guild):
+            await interaction.response.send_message("❌ Mày phải có quyền Admin mới được dùng lệnh này!", ephemeral=True)
+            return
+
+        target_xp = xp_for_level(level)
+        g_id = str(interaction.guild_id)
+        u_id = str(user.id)
+
+        if g_id not in self.levels:
+            self.levels[g_id] = {}
+        self.levels[g_id][u_id] = {"xp": target_xp}
+        save_levels(self.levels)
+
+        await interaction.response.send_message(f"👑 Đã thiết lập thành công {user.mention} lên thẳng **Level {level}** ({target_xp:,} XP)!")
+        
+        await send_log_to_admin(
+            interaction.guild,
+            title="👑 [ADMIN] THIẾT LẬP LEVEL",
+            description=f"Admin {interaction.user.mention} đã đặt level của {user.mention} thành **Level {level}**.",
+            color=discord.Color.gold()
+        )
 
 
 async def setup(bot):
