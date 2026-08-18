@@ -98,7 +98,8 @@ class Welcome(commands.Cog):
                 return r
         return None
 
-    @app_commands.command(name="set_welcome", description="Cài đặt kênh gửi tin nhắn chào mừng/tiễn thành viên")
+    @app_commands.command(name="set_welcome", description="Cài đặt kênh gửi tin nhắn chào mừng/tiễn thành viên (Admin)")
+    @app_commands.default_permissions(administrator=True)
     async def set_welcome(
         self, 
         interaction: discord.Interaction, 
@@ -121,7 +122,8 @@ class Welcome(commands.Cog):
         except Exception as e:
             await interaction.response.send_message(f"❌ Lỗi khi lưu cài đặt: {e}", ephemeral=True)
 
-    @app_commands.command(name="set_autorole", description="Cài đặt vai trò tự động cấp cho thành viên mới khi vào Server")
+    @app_commands.command(name="set_autorole", description="Cài đặt vai trò tự động cấp cho thành viên mới khi vào Server (Admin)")
+    @app_commands.default_permissions(administrator=True)
     async def set_autorole(self, interaction: discord.Interaction, role: discord.Role):
         user_perms = interaction.user.guild_permissions
         if not (user_perms.administrator or user_perms.manage_guild or user_perms.manage_roles):
@@ -147,7 +149,8 @@ class Welcome(commands.Cog):
         except Exception as e:
             await interaction.response.send_message(f"❌ Lỗi khi lưu Auto-Role: {e}", ephemeral=True)
 
-    @app_commands.command(name="clear_autorole", description="Tắt tính năng tự động cấp vai trò cho thành viên mới")
+    @app_commands.command(name="clear_autorole", description="Tắt tính năng tự động cấp vai trò cho thành viên mới (Admin)")
+    @app_commands.default_permissions(administrator=True)
     async def clear_autorole(self, interaction: discord.Interaction):
         user_perms = interaction.user.guild_permissions
         if not (user_perms.administrator or user_perms.manage_guild or user_perms.manage_roles):
@@ -171,7 +174,6 @@ class Welcome(commands.Cog):
         role = self.get_auto_role(member.guild)
         if role:
             try:
-                # Kiểm tra quyền thứ bậc role trước khi gán
                 if role < member.guild.me.top_role:
                     await member.add_roles(role, reason="Auto-Role khi gia nhập server")
                     logger.info(f"Đã cấp thành công role {role.name} cho {member.name}")

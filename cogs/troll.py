@@ -69,7 +69,10 @@ class DebtView(discord.ui.View):
         
         msg = f"😡 Alo {self.debtor.mention}, mày định quỵt luôn à? Chuyển ngay **{self.amount}k** tiền **{self.reason}** mau!"
         try:
-            await interaction.channel.send(msg)
+            if interaction.channel:
+                await interaction.channel.send(msg)
+            else:
+                await interaction.followup.send(msg)
         except Exception:
             await interaction.followup.send(msg)
         await interaction.response.send_message("Đã chửi con nợ thành công!", ephemeral=True)
@@ -113,7 +116,7 @@ class NemDaModal(discord.ui.Modal, title='Ném đá giấu tay'):
                 await interaction.channel.send(embed=embed)
             else:
                 await interaction.followup.send(embed=embed)
-        except discord.Forbidden:
+        except Exception:
             await interaction.followup.send(embed=embed)
 
 
@@ -124,100 +127,89 @@ class TrollCog(commands.Cog):
     @app_commands.command(name="hdsd", description="Xem cẩm nang hướng dẫn sử dụng toàn bộ lệnh của Bot")
     async def hdsd(self, interaction: discord.Interaction):
         embed = discord.Embed(
-            title="📖 CẨM NANG SỬ DỤNG BOT - CHÚA TỂ CÀ KHỊA 🤡",
-            description="Chào mừng bạn đến với chuồng hề! Dưới đây là toàn bộ bí kíp để quậy phá và quản trị server.",
+            title="📖 CẨM NANG HƯỚNG DẪN SỬ DỤNG BOT 🤖✨",
+            description="Chào mừng bạn đến với Server! Dưới đây là toàn bộ danh sách các tính năng giải trí, cấp độ và quản trị.",
             color=discord.Color.purple()
         )
         
         embed.add_field(
-            name="💸 1. Máy Đòi Nợ Mặt Dày",
-            value="• `/doino @user <số_tiền> <lý_do>`: Ghi sổ nợ, tag con nợ kèm 3 nút tương tác.\n• `/so_no`: Xem bảng phong thần top nợ dai nhất server.",
-            inline=False
-        )
-        
-        embed.add_field(
-            name="🛞 2. Quét Độ Lốp Dự Phòng",
-            value="• `/checklop @user`: Đo độ simp / lụy tình từ 0% đến 100% kèm chẩn đoán.",
+            name="⭐ 1. Hệ Thống Cày Cấp & Level",
+            value="• `/rank [@user]`: Xem thẻ cấp độ, tổng EXP và thanh tiến trình thăng cấp.\n• `/top`: Xem Bảng Phong Thần Top 10 cao thủ cày cấp của Server.\n*(💬 Nhắn tin chat + 🎙️ Treo phòng Voice để nhận EXP tự động mỗi phút)*",
             inline=False
         )
 
         embed.add_field(
-            name="🃏 3. Thả Joker & Hề Chúa",
-            value="• `/joker @user <lý_do>`: Phong danh Nghệ sĩ Ưu tú Ngành Hề + tặng văn mẫu Joker.",
+            name="🤡 2. Tính Năng Giải Trí & Troll",
+            value="• `/checklop @user`: Đo độ simp / lụy tình từ 0% đến 100% kèm chẩn đoán.\n• `/joker @user <lý_do>`: Tặng danh hiệu hề chúa + văn mẫu Joker.\n• `/nemda`: Mở hộp thoại gửi tin nhắn bí mật hoàn toàn ẩn danh.\n• `/spamtag @user <nội_dung> <số_lần>`: Spam tag réo tên (1-10 lần, cooldown 45s).",
             inline=False
         )
 
         embed.add_field(
-            name="🥷 4. Ném Đá Giấu Tay (Ẩn Danh)",
-            value="• `/nemda`: Bật hộp thoại bí mật để bóc phốt nặc danh. Không ai biết bạn là ai!",
+            name="💸 3. Sổ Ghi Nợ Mặt Dày",
+            value="• `/doino @user <số_tiền> <lý_do>`: Ghi sổ nợ kèm 3 nút tương tác đòi tiền.\n• `/so_no`: Xem danh sách top nợ nần nhiều nhất server.",
             inline=False
         )
 
         embed.add_field(
-            name="📢 5. Réo Tên Vong Hồn (Spam Tag)",
-            value="• `/spamtag @user <nội_dung> <số_lần>`: Spam tag réo tên liên tục (max 10 lần, cooldown 45s).",
+            name="🔊 4. Chị Google Đọc Hộ Trong Voice",
+            value="• `/noi <nội_dung>`: Chị Google tự động bay vào phòng voice đọc văn bản bằng tiếng Việt.\n• `/join`: Mời bot vào phòng thoại.\n• `/leave`: Cho bot rời phòng thoại.",
             inline=False
         )
 
         embed.add_field(
-            name="📜 6. Luật & Nội Quy Server",
-            value="• `/rule`: Xem 10 điều luật sinh tồn bất thành văn của Server.\n• `/set_rule <nội_dung>`: Admin cài đặt nội quy riêng cho lớp.",
+            name="📜 5. Nội Quy Server",
+            value="• `/rule`: Xem 10 điều quy định chung của Server.",
             inline=False
         )
 
         embed.add_field(
-            name="🔊 7. Chị Google Đọc Hộ Trong Voice",
-            value="• `/join`: Mời chị Google vào phòng voice bạn đang ngồi.\n• `/noi <nội_dung>`: Chị Google đọc to văn bản bằng tiếng Việt.\n• `/leave`: Cho chị Google rời phòng.",
+            name="⚙️ 6. Lệnh Quản Trị (Dành Cho Admin 🔒)",
+            value="• `/set_welcome #channel`: Cài đặt kênh gửi thông báo chào mừng & tiễn thành viên.\n• `/set_autorole @role`: Tự động cấp vai trò cho thành viên mới khi vào Server.\n• `/clear_autorole`: Tắt tính năng tự cấp vai trò.\n• `/set_rule <nội_dung>`: Thêm nội quy riêng cho Server.",
             inline=False
         )
 
-        embed.add_field(
-            name="⚙️ 8. Quản Trị & Cài Đặt (Admin)",
-            value="• `/set_autorole @role`: Tự động cấp vai trò cho thành viên mới khi vào Server.\n• `/clear_autorole`: Tắt tự động cấp vai trò.\n• `/set_welcome #channel`: Chỉ định kênh gửi thông báo chào đón/tiễn.",
-            inline=False
-        )
-
-        embed.set_footer(text="Gõ / để xem danh sách lệnh gợi ý trực tiếp của Discord!")
+        embed.set_footer(text="Gõ / để xem danh sách gợi ý trực tiếp của Discord!")
         embed.set_thumbnail(url=CLOWN_ICON_URL)
         
         await interaction.response.send_message(embed=embed)
 
-    @app_commands.command(name="rule", description="Xem nội quy & 10 điều luật bất thành văn của Server")
+    @app_commands.command(name="rule", description="Xem 10 điều nội quy của Server")
     async def rule(self, interaction: discord.Interaction):
         config = load_json(CONFIG_FILE)
         guild_id = str(interaction.guild_id)
         custom_rule = config.get(guild_id, {}).get("custom_rule")
 
         embed = discord.Embed(
-            title="📜 10 ĐIỀU LUẬT BẤT THÀNH VĂN CỦA CHUỒNG HỀ 🤡",
+            title="📜 NỘI QUY & QUY ĐỊNH SERVER 🌟",
             color=discord.Color.gold()
         )
 
         if custom_rule:
-            embed.description = f"**📢 NỘI QUY RIÊNG CỦA SERVER:**\n{custom_rule}\n\n" + "—"*25 + "\n**⚖️ 10 ĐIỀU LUẬT CỐT LÕI:**"
+            embed.description = f"**📢 NỘI QUY RIÊNG CỦA SERVER:**\n{custom_rule}\n\n" + "—"*25 + "\n**⚖️ 10 ĐIỀU QUY ĐỊNH CHUNG:**"
         else:
-            embed.description = "Bất kỳ ai bước chân vào Server đều phải tuân thủ nghiêm ngặt các điều khoản sau:"
+            embed.description = "Chào mừng bạn đến với Server! Vui lòng đọc kỹ và tuân thủ các quy định dưới đây để giữ gìn môi trường vui chơi lành mạnh:"
 
         rules_list = [
-            "**Điều 1:** Cấm làm lốp xe dự phòng quá 24h. Bị phát hiện sẽ bị phạt lệnh `/checklop` công khai.",
-            "**Điều 2:** Vay tiền không trả thì xác định ăn `/doino` cả ngày lẫn đêm đến khi nào trả mới thôi.",
-            "**Điều 3:** Cấm sủi Voice không lý do (đặc biệt là lý do 'đi ăn cơm' xong mất tích 3 ngày).",
-            "**Điều 4:** Phát ngôn ngáo ngơ, tự luyến tự giác nhận danh hiệu Joker 🃏.",
-            "**Điều 5:** Nghiêm cấm chụp màn hình mang đi mách cô giáo hoặc phụ huynh.",
-            "**Điều 6:** Tôn trọng chủ phòng Voice, không tranh mic rên rỉ giờ thi cử.",
-            "**Điều 7:** Ai bị tag 10 lần bằng `/spamtag` mà không rep sẽ bị coi là 'Đáy xã hội'.",
-            "**Điều 8:** Không dùng `/nemda` vu khống người vô tội (trừ khi thấy vui).",
-            "**Điều 9:** Lời nói không mất tiền mua, lựa lời mà chửi cho vừa lòng nhau.",
-            "**Điều 10:** Mọi quyết định của Admin là chân lý. Nếu Admin sai, xem lại Điều 1."
+            "**Điều 1 (Tôn trọng):** Tôn trọng tất cả các thành viên trong server, giữ hòa khí vui vẻ và hòa đồng.",
+            "**Điều 2 (Văn hóa ứng xử):** Sử dụng ngôn từ văn minh; nghiêm cấm xúc phạm, lăng mạ, bôi nhọ danh dự người khác.",
+            "**Điều 3 (Chống Spam):** Không spam tin nhắn, spam tag vô lý hoặc cố tình phá rối khi người khác đang nói chuyện / chơi game.",
+            "**Điều 4 (Nội dung an toàn):** Nghiêm cấm chia sẻ nội dung 18+, hình ảnh phản cảm, link độc hại, virus hoặc lừa đảo.",
+            "**Điều 5 (Sử dụng Bot):** Dùng các lệnh Bot giải trí đúng kênh quy định (như `#đồ-chơi`, `#chat`).",
+            "**Điều 6 (Vui chơi có chừng mực):** Trêu đùa vui vẻ, lành mạnh và biết điểm dừng đúng lúc.",
+            "**Điều 7 (Trật tự Voice):** Giữ trật tự chung trong phòng thoại, không bật âm thanh quá lớn gây chói tai ảnh hưởng người khác.",
+            "**Điều 8 (Tính năng ẩn danh):** Không lạm dụng tính năng nặc danh để vu khống hoặc bịa đặt sai sự thật.",
+            "**Điều 9 (Ban Quản Trị):** Tuân thủ sự nhắc nhở và quyết định xử lý của Admin / Ban quản trị server.",
+            "**Điều 10 (Thư giãn):** Chúc tất cả anh em có những phút giây giao lưu, xả stress và chơi game thật vui vẻ!"
         ]
 
-        embed.add_field(name="⚖️ Nội quy chi tiết", value="\n\n".join(rules_list), inline=False)
-        embed.set_footer(text="Admin có thể dùng /set_rule để thêm nội quy riêng!")
+        embed.add_field(name="⚖️ Chi tiết 10 điều quy định", value="\n\n".join(rules_list), inline=False)
+        embed.set_footer(text="Ban Quản Trị có thể dùng /set_rule để bổ sung quy định riêng!")
         embed.set_thumbnail(url=SCROLL_ICON_URL)
 
         await interaction.response.send_message(embed=embed)
 
     @app_commands.command(name="set_rule", description="Cài đặt nội quy riêng của Server (Dành cho Admin)")
+    @app_commands.default_permissions(administrator=True)
     async def set_rule(self, interaction: discord.Interaction, noi_dung: str):
         user_perms = interaction.user.guild_permissions
         if not (user_perms.administrator or user_perms.manage_guild):
@@ -373,7 +365,6 @@ class TrollCog(commands.Cog):
                 else:
                     await interaction.followup.send(msg_content)
             except discord.Forbidden:
-                # Nếu bot bị thiếu quyền send trong kênh, fallback qua followup webhook
                 await interaction.followup.send(msg_content)
             except Exception:
                 await interaction.followup.send(msg_content)
