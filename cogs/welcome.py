@@ -72,7 +72,7 @@ class Welcome(commands.Cog):
                 config[guild_id] = {}
             config[guild_id]["welcome_channel_id"] = channel.id
             save_config(config)
-            await interaction.response.send_message(f"✅ Đã cài đặt kênh chào mừng thành viên tại {channel.mention}!", ephemeral=True)
+            await interaction.response.send_message(f"✅ Đã cài đặt kênh chào mừng/tiễn thành viên tại {channel.mention}!", ephemeral=True)
         except Exception as e:
             await interaction.response.send_message(f"❌ Lỗi khi lưu cài đặt: {e}", ephemeral=True)
 
@@ -83,7 +83,6 @@ class Welcome(commands.Cog):
             await interaction.response.send_message("❌ Mày phải có quyền Quản trị viên (Admin) hoặc Quản lý vai trò mới được dùng lệnh này nha!", ephemeral=True)
             return
 
-        # Kiểm tra xem bot có quyền cấp role này không
         if role >= interaction.guild.me.top_role:
             await interaction.response.send_message(
                 f"❌ Vai trò {role.mention} cao hơn hoặc bằng vai trò của Bot!\n👉 **Cách sửa:** Vào *Cài đặt Server -> Vai trò*, kéo vai trò của Bot lên **trên** vai trò {role.name} nhé.",
@@ -118,18 +117,20 @@ class Welcome(commands.Cog):
 
     @commands.Cog.listener()
     async def on_member_join(self, member):
+        logger.info(f"Thành viên mới vào server: {member.name} (ID: {member.id})")
         config = load_config()
         guild_id = str(member.guild.id)
         
         # 1. Tự động cấp Role cho thành viên mới nếu có cài đặt
         autorole_id = config.get(guild_id, {}).get("autorole_id")
         if autorole_id:
-            role = member.guild.get_role(int(autorole_id))
-            if role:
-                try:
+            try:
+                role = member.guild.get_role(int(autorole_id))
+                if role:
                     await member.add_roles(role, reason="Auto-Role khi gia nhập server")
-                except Exception as e:
-                    logger.error(f"Lỗi cấp Auto-Role: {e}")
+                    logger.info(f"Đã cấp role {role.name} cho {member.name}")
+            except Exception as e:
+                logger.error(f"Lỗi cấp Auto-Role: {e}")
 
         # 2. Gửi tin nhắn chào mừng bựa
         channel_id = config.get(guild_id, {}).get("welcome_channel_id")
@@ -146,11 +147,13 @@ class Welcome(commands.Cog):
             msg = random.choice(self.join_messages).format(tag=member.mention)
             try:
                 await channel.send(msg)
+                logger.info(f"Đã gửi thông báo chào mừng {member.name} vào kênh {channel.name}")
             except Exception as e:
                 logger.error(f"Lỗi gửi tin nhắn chào mừng: {e}")
 
     @commands.Cog.listener()
     async def on_member_remove(self, member):
+        logger.info(f"Thành viên rời server: {member.name} (ID: {member.id})")
         config = load_config()
         guild_id = str(member.guild.id)
         channel_id = config.get(guild_id, {}).get("welcome_channel_id")
@@ -167,6 +170,7 @@ class Welcome(commands.Cog):
             msg = random.choice(self.leave_messages).format(name=member.display_name)
             try:
                 await channel.send(msg)
+                logger.info(f"Đã gửi thông báo tiễn {member.name} vào kênh {channel.name}")
             except Exception as e:
                 logger.error(f"Lỗi gửi tin nhắn tiễn biệt: {e}")
 
@@ -174,7 +178,6 @@ class Welcome(commands.Cog):
     async def on_voice_state_update(self, member, before, after):
         # 1. Khi có người VÀO Voice
         if before.channel is None and after.channel is not None:
-            # Bỏ qua chính con bot
             if member.id == self.bot.user.id:
                 return
             msg = random.choice(self.vc_join_messages).format(mention=member.mention)
