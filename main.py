@@ -27,8 +27,6 @@ class TrollBot(commands.Bot):
     """Lớp Bot chính kế thừa từ commands.Bot của discord.py 2.x"""
 
     def __init__(self) -> None:
-        # Sử dụng default intents (KHÔNG đòi hỏi Privileged Intents)
-        # Giúp bot chạy ngay lập tức mà không bao giờ bị lỗi PrivilegedIntentsRequired
         intents = discord.Intents.default()
         
         super().__init__(
@@ -78,11 +76,19 @@ class TrollBot(commands.Bot):
         """Sự kiện kích hoạt khi bot sẵn sàng hoạt động"""
         logger.info(f"Bot đã đăng nhập thành công: {self.user} (ID: {self.user.id})")
 
+        # Đồng bộ TỨC THÌ (Instant Sync) cho từng Server mà bot đang tham gia (hiện lệnh ngay trong 1 giây)
+        for guild in self.guilds:
+            try:
+                self.tree.copy_global_to(guild=guild)
+                synced = await self.tree.sync(guild=guild)
+                logger.info(f"⚡ Đã đồng bộ tức thì {len(synced)} lệnh cho server: {guild.name}")
+            except Exception as e:
+                logger.error(f"Lỗi sync guild {guild.name}: {e}")
+
         try:
-            synced = await self.tree.sync()
-            logger.info(f"Đã đồng bộ thành công {len(synced)} Slash Commands.")
-        except Exception as e:
-            logger.error(f"Lỗi khi đồng bộ Slash Commands: {e}", exc_info=True)
+            await self.tree.sync()
+        except Exception:
+            pass
 
         logger.info(f"Đang kết nối tới {len(self.guilds)} máy chủ Discord.")
         print("\n" + "="*50)
