@@ -53,7 +53,7 @@ class TrollBot(commands.Bot):
         )
 
     async def setup_hook(self) -> None:
-        """Tự động tải tất cả các cogs trong thư mục cogs/ và thiết lập error handler cho Slash Commands"""
+        """Tự động tải tất cả các cogs trong thư mục cogs/"""
         if os.getenv("PORT") or os.getenv("RENDER"):
             asyncio.create_task(start_keep_alive_web())
 
@@ -103,7 +103,7 @@ class TrollBot(commands.Bot):
         """Sự kiện kích hoạt khi bot sẵn sàng hoạt động"""
         logger.info(f"Bot đã đăng nhập thành công: {self.user} (ID: {self.user.id})")
 
-        # Cài đặt trạng thái sáng đèn Online và dòng hiển thị game
+        # Cài đặt trạng thái sáng đèn Online
         try:
             await self.change_presence(
                 status=discord.Status.online,
@@ -112,17 +112,18 @@ class TrollBot(commands.Bot):
         except Exception:
             pass
 
-        # Đồng bộ trực tiếp vào từng Guild để cập nhật NGAY LẬP TỨC 100%
+        # XÓA TOÀN BỘ LỆNH GUILD TRÙNG LẶP ĐỂ DANH SÁCH CHỈ CÒN 1 DÒNG DUY NHẤT
         for guild in self.guilds:
             try:
-                self.tree.copy_global_to(guild=guild)
+                self.tree.clear_commands(guild=guild)
                 await self.tree.sync(guild=guild)
-                logger.info(f"⚡ Đã sync lệnh tức thì cho Server: {guild.name}")
+                logger.info(f"🧹 Đã xóa sạch lệnh trùng lặp cho Server: {guild.name}")
             except Exception as e:
-                logger.error(f"Lỗi sync guild {guild.name}: {e}")
+                logger.error(f"Lỗi clear guild {guild.name}: {e}")
 
+        # Đồng bộ danh sách lệnh Global duy nhất
         synced = await self.tree.sync()
-        logger.info(f"⚡ Đã đồng bộ sạch sẽ {len(synced)} lệnh!")
+        logger.info(f"⚡ Đã đồng bộ danh sách {len(synced)} lệnh Global sạch sẽ 100%!")
 
         logger.info(f"Đang kết nối tới {len(self.guilds)} máy chủ Discord.")
         print("\n" + "="*50)
