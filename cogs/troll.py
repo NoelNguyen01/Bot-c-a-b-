@@ -9,8 +9,11 @@ import time
 import asyncio
 from typing import Optional
 
-DEBTS_FILE = "data/debts.json"
-CONFIG_FILE = "data/config.json"
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+DATA_DIR = os.path.join(BASE_DIR, "data")
+DEBTS_FILE = os.path.join(DATA_DIR, "debts.json")
+CONFIG_FILE = os.path.join(DATA_DIR, "config.json")
+
 CLOWN_ICON_URL = "https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/1f921.png"
 SCROLL_ICON_URL = "https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/1f4dc.png"
 
@@ -24,7 +27,7 @@ def load_json(filepath):
             return {}
 
 def save_json(filepath, data):
-    os.makedirs(os.path.dirname(filepath), exist_ok=True)
+    os.makedirs(DATA_DIR, exist_ok=True)
     with open(filepath, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=4, ensure_ascii=False)
 
@@ -101,7 +104,8 @@ class NemDaModal(discord.ui.Modal, title='Ném đá giấu tay'):
         )
         embed.set_author(name=author_name)
         
-        await interaction.channel.send(embed=embed)
+        if interaction.channel:
+            await interaction.channel.send(embed=embed)
 
 
 class TrollCog(commands.Cog):
@@ -205,8 +209,12 @@ class TrollCog(commands.Cog):
         await interaction.response.send_message(embed=embed)
 
     @app_commands.command(name="set_rule", description="Cài đặt nội quy riêng của Server (Dành cho Admin)")
-    @app_commands.checks.has_permissions(administrator=True)
     async def set_rule(self, interaction: discord.Interaction, noi_dung: str):
+        user_perms = interaction.user.guild_permissions
+        if not (user_perms.administrator or user_perms.manage_guild):
+            await interaction.response.send_message("❌ Mày phải có quyền Quản trị viên (Admin) mới được dùng lệnh này!", ephemeral=True)
+            return
+
         config = load_json(CONFIG_FILE)
         guild_id = str(interaction.guild_id)
         if guild_id not in config:
@@ -349,7 +357,8 @@ class TrollCog(commands.Cog):
         
         for _ in range(so_lan):
             prefix = random.choice(prefixes).format(tag=user.mention)
-            await interaction.channel.send(f"{prefix} - {noi_dung}")
+            if interaction.channel:
+                await interaction.channel.send(f"{prefix} - {noi_dung}")
             await asyncio.sleep(1.2)
 
 
