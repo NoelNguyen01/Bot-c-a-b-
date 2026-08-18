@@ -31,6 +31,7 @@ def save_config(data):
 class Welcome(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
+        self.cache = load_config()
         self.join_messages = [
             "Chào mừng con mồi mới {tag} đã gia nhập chuồng hề. 🤡",
             "Ơ kìa {tag} lạc vào chuồng thú rồi à? Chào mừng nhé! 🎪",
@@ -54,6 +55,31 @@ class Welcome(commands.Cog):
             "{mention} biến mất nhanh hơn crush rep tin nhắn mày. 💨"
         ]
 
+    def get_welcome_channel(self, guild: discord.Guild):
+        guild_id = str(guild.id)
+        config = load_config()
+        channel_id = config.get(guild_id, {}).get("welcome_channel_id") or self.cache.get(guild_id, {}).get("welcome_channel_id")
+        
+        channel = None
+        if channel_id:
+            try:
+                channel = guild.get_channel(int(channel_id))
+            except Exception:
+                pass
+
+        # Nếu chưa cài đặt, tự động tìm kênh có tên hello-baibai, chao-mung, welcome
+        if not channel:
+            for c in guild.channels:
+                if any(name in c.name.lower() for name in ["hello-baibai", "hello", "chao-mung", "welcome", "thong-bao"]):
+                    if hasattr(c, "send"):
+                        channel = c
+                        break
+
+        # Fallback cuối cùng về kênh hệ thống
+        if not channel:
+            channel = guild.system_channel
+        return channel
+
     @app_commands.command(name="set_welcome", description="Cài đặt kênh gửi tin nhắn chào mừng/tiễn thành viên")
     async def set_welcome(
         self, 
@@ -71,8 +97,9 @@ class Welcome(commands.Cog):
             if guild_id not in config:
                 config[guild_id] = {}
             config[guild_id]["welcome_channel_id"] = channel.id
+            self.cache[guild_id] = config[guild_id]
             save_config(config)
-            await interaction.response.send_message(f"✅ Đã cài đặt kênh chào mừng/tiễn thành viên tại {channel.mention}!", ephemeral=True)
+            await interaction.response.send_message(f"✅ Đã ghim kênh chào mừng & tiễn thành viên tại {channel.mention}!", ephemeral=True)
         except Exception as e:
             await interaction.response.send_message(f"❌ Lỗi khi lưu cài đặt: {e}", ephemeral=True)
 
@@ -96,6 +123,7 @@ class Welcome(commands.Cog):
             if guild_id not in config:
                 config[guild_id] = {}
             config[guild_id]["autorole_id"] = role.id
+            self.cache[guild_id] = config[guild_id]
             save_config(config)
             await interaction.response.send_message(f"✅ Đã thiết lập Auto-Role! Từ giờ ai vào Server sẽ tự động được nhận vai trò {role.mention}.", ephemeral=True)
         except Exception as e:
@@ -112,6 +140,8 @@ class Welcome(commands.Cog):
         guild_id = str(interaction.guild_id)
         if guild_id in config and "autorole_id" in config[guild_id]:
             del config[guild_id]["autorole_id"]
+            if guild_id in self.cache and "autorole_id" in self.cache[guild_id]:
+                del self.cache[guild_id]["autorole_id"]
             save_config(config)
         await interaction.response.send_message("✅ Đã tắt tính năng tự động cấp vai trò!", ephemeral=True)
 
@@ -122,7 +152,7 @@ class Welcome(commands.Cog):
         guild_id = str(member.guild.id)
         
         # 1. Tự động cấp Role cho thành viên mới nếu có cài đặt
-        autorole_id = config.get(guild_id, {}).get("autorole_id")
+        autorole_id = config.get(guild_id, {}).get("autorole_id") or self.cache.get(guild_id, {}).get("autorole_id")
         if autorole_id:
             try:
                 role = member.guild.get_role(int(autorole_id))
@@ -133,17 +163,8 @@ class Welcome(commands.Cog):
                 logger.error(f"Lỗi cấp Auto-Role: {e}")
 
         # 2. Gửi tin nhắn chào mừng bựa
-        channel_id = config.get(guild_id, {}).get("welcome_channel_id")
-        channel = None
-        if channel_id:
-            try:
-                channel = member.guild.get_channel(int(channel_id)) or await member.guild.fetch_channel(int(channel_id))
-            except Exception:
-                pass
-        if not channel:
-            channel = member.guild.system_channel
-
-        if channel:
+        channel = self.get_welcome_channel(member.guild)
+        if channel and hasattr(channel, "send"):
             msg = random.choice(self.join_messages).format(tag=member.mention)
             try:
                 await channel.send(msg)
@@ -154,19 +175,8 @@ class Welcome(commands.Cog):
     @commands.Cog.listener()
     async def on_member_remove(self, member):
         logger.info(f"Thành viên rời server: {member.name} (ID: {member.id})")
-        config = load_config()
-        guild_id = str(member.guild.id)
-        channel_id = config.get(guild_id, {}).get("welcome_channel_id")
-        channel = None
-        if channel_id:
-            try:
-                channel = member.guild.get_channel(int(channel_id)) or await member.guild.fetch_channel(int(channel_id))
-            except Exception:
-                pass
-        if not channel:
-            channel = member.guild.system_channel
-
-        if channel:
+        channel = self.get_welcome_channel(member.guild)
+        if channel and hasattr(channel, "send"):
             msg = random.choice(self.leave_messages).format(name=member.display_name)
             try:
                 await channel.send(msg)
