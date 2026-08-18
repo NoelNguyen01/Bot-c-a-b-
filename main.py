@@ -50,7 +50,6 @@ class TrollBot(commands.Bot):
 
     async def setup_hook(self) -> None:
         """Tự động tải tất cả các cogs trong thư mục cogs/ và thiết lập error handler cho Slash Commands"""
-        # Bật web server nếu chạy trên cloud (Render/Koyeb)
         if os.getenv("PORT") or os.getenv("RENDER"):
             asyncio.create_task(start_keep_alive_web())
 
@@ -80,9 +79,17 @@ class TrollBot(commands.Bot):
                 await interaction.response.send_message(msg, ephemeral=True)
             return
 
+        if isinstance(error, app_commands.MissingPermissions):
+            msg = "❌ Mày không có quyền để dùng lệnh này nha!"
+            if interaction.response.is_done():
+                await interaction.followup.send(msg, ephemeral=True)
+            else:
+                await interaction.response.send_message(msg, ephemeral=True)
+            return
+
         command_name = interaction.command.name if interaction.command else "Không rõ"
         logger.error(f"Lỗi khi thực thi lệnh /{command_name}: {error}", exc_info=True)
-        error_msg = "Có lỗi xảy ra khi thực hiện lệnh rồi con lợn ơi!"
+        error_msg = f"Có lỗi xảy ra: {error}"
         if interaction.response.is_done():
             await interaction.followup.send(error_msg, ephemeral=True)
         else:

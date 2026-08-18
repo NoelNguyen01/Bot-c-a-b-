@@ -6,7 +6,10 @@ import random
 import json
 import os
 
-CONFIG_FILE = "data/config.json"
+# Đường dẫn tuyệt đối an toàn cho cả máy local và Cloud (Render / Discloud)
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+DATA_DIR = os.path.join(BASE_DIR, "data")
+CONFIG_FILE = os.path.join(DATA_DIR, "config.json")
 
 def load_config():
     if not os.path.exists(CONFIG_FILE):
@@ -18,7 +21,7 @@ def load_config():
             return {}
 
 def save_config(data):
-    os.makedirs(os.path.dirname(CONFIG_FILE), exist_ok=True)
+    os.makedirs(DATA_DIR, exist_ok=True)
     with open(CONFIG_FILE, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=4, ensure_ascii=False)
 
@@ -50,38 +53,57 @@ class Welcome(commands.Cog):
         ]
 
     @app_commands.command(name="set_welcome", description="Cài đặt kênh gửi tin nhắn chào mừng/tiễn thành viên")
-    @app_commands.checks.has_permissions(administrator=True)
     async def set_welcome(self, interaction: discord.Interaction, channel: discord.TextChannel):
-        config = load_config()
-        guild_id = str(interaction.guild_id)
-        if guild_id not in config:
-            config[guild_id] = {}
-        config[guild_id]["welcome_channel_id"] = channel.id
-        save_config(config)
-        await interaction.response.send_message(f"✅ Đã cài đặt kênh chào mừng thành viên tại {channel.mention}!", ephemeral=True)
+        # Cho phép Admin hoặc người có quyền Quản lý máy chủ / Quản lý kênh
+        user_perms = interaction.user.guild_permissions
+        if not (user_perms.administrator or user_perms.manage_guild or user_perms.manage_channels):
+            await interaction.response.send_message("❌ Mày phải có quyền Quản trị viên (Admin) hoặc Quản lý kênh mới được dùng lệnh này nha con!", ephemeral=True)
+            return
+
+        try:
+            config = load_config()
+            guild_id = str(interaction.guild_id)
+            if guild_id not in config:
+                config[guild_id] = {}
+            config[guild_id]["welcome_channel_id"] = channel.id
+            save_config(config)
+            await interaction.response.send_message(f"✅ Đã cài đặt kênh chào mừng thành viên tại {channel.mention}!", ephemeral=True)
+        except Exception as e:
+            await interaction.response.send_message(f"❌ Lỗi khi lưu cài đặt: {e}", ephemeral=True)
 
     @app_commands.command(name="set_autorole", description="Cài đặt vai trò tự động cấp cho thành viên mới khi vào Server")
-    @app_commands.checks.has_permissions(administrator=True)
     async def set_autorole(self, interaction: discord.Interaction, role: discord.Role):
+        user_perms = interaction.user.guild_permissions
+        if not (user_perms.administrator or user_perms.manage_guild or user_perms.manage_roles):
+            await interaction.response.send_message("❌ Mày phải có quyền Quản trị viên (Admin) hoặc Quản lý vai trò mới được dùng lệnh này nha!", ephemeral=True)
+            return
+
         # Kiểm tra xem bot có quyền cấp role này không
         if role >= interaction.guild.me.top_role:
             await interaction.response.send_message(
-                "❌ Vai trò này cao hơn hoặc bằng vai trò của Bot! Bạn hãy kéo vai trò của Bot lên cao hơn vai trò này trong cài đặt Server nhé.",
+                f"❌ Vai trò {role.mention} cao hơn hoặc bằng vai trò cao nhất của Bot!\n👉 **Cách sửa:** Vào *Cài đặt Server -> Vai trò*, kéo vai trò của Bot lên **trên** vai trò {role.name} nhé.",
                 ephemeral=True
             )
             return
 
-        config = load_config()
-        guild_id = str(interaction.guild_id)
-        if guild_id not in config:
-            config[guild_id] = {}
-        config[guild_id]["autorole_id"] = role.id
-        save_config(config)
-        await interaction.response.send_message(f"✅ Đã thiết lập Auto-Role! Từ giờ ai vào Server sẽ tự động được nhận vai trò {role.mention}.", ephemeral=True)
+        try:
+            config = load_config()
+            guild_id = str(interaction.guild_id)
+            if guild_id not in config:
+                config[guild_id] = {}
+            config[guild_id]["autorole_id"] = role.id
+            save_config(config)
+            await interaction.response.send_message(f"✅ Đã thiết lập Auto-Role! Từ giờ ai vào Server sẽ tự động được nhận vai trò {role.mention}.", ephemeral=True)
+        except Exception as e:
+            await interaction.response.send_message(f"❌ Lỗi khi lưu Auto-Role: {e}", ephemeral=True)
 
     @app_commands.command(name="clear_autorole", description="Tắt tính năng tự động cấp vai trò cho thành viên mới")
-    @app_commands.checks.has_permissions(administrator=True)
     async def clear_autorole(self, interaction: discord.Interaction):
+        user_perms = interaction.user.guild_permissions
+        if not (user_perms.administrator or user_perms.manage_guild or user_perms.manage_roles):
+            await interaction.response.send_message("❌ Mày phải có quyền Quản trị viên (Admin) mới được dùng lệnh này!", ephemeral=True)
+            return
+
         config = load_config()
         guild_id = str(interaction.guild_id)
         if guild_id in config and "autorole_id" in config[guild_id]:
