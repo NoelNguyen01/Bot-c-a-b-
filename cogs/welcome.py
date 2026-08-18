@@ -6,6 +6,7 @@ import random
 import json
 import os
 import logging
+from cogs.admin_log import send_log_to_admin
 
 logger = logging.getLogger("Welcome")
 
@@ -119,6 +120,13 @@ class Welcome(commands.Cog):
             self.cache[guild_id] = config[guild_id]
             save_config(config)
             await interaction.response.send_message(f"✅ Đã ghim kênh chào mừng & tiễn thành viên tại {channel.mention}!", ephemeral=True)
+            
+            await send_log_to_admin(
+                interaction.guild,
+                title="⚙️ [CÀI ĐẶT] ĐỔI KÊNH CHÀO MỪNG",
+                description=f"Admin {interaction.user.mention} đã đổi kênh chào mừng sang {channel.mention}.",
+                color=discord.Color.gold()
+            )
         except Exception as e:
             await interaction.response.send_message(f"❌ Lỗi khi lưu cài đặt: {e}", ephemeral=True)
 
@@ -146,6 +154,13 @@ class Welcome(commands.Cog):
             self.cache[guild_id] = config[guild_id]
             save_config(config)
             await interaction.response.send_message(f"✅ Đã thiết lập Auto-Role! Từ giờ ai vào Server sẽ tự động được nhận vai trò {role.mention}.", ephemeral=True)
+            
+            await send_log_to_admin(
+                interaction.guild,
+                title="⚙️ [CÀI ĐẶT] THIẾT LẬP AUTO-ROLE",
+                description=f"Admin {interaction.user.mention} đã đổi vai trò tự cấp sang {role.mention}.",
+                color=discord.Color.gold()
+            )
         except Exception as e:
             await interaction.response.send_message(f"❌ Lỗi khi lưu Auto-Role: {e}", ephemeral=True)
 
@@ -166,16 +181,25 @@ class Welcome(commands.Cog):
             save_config(config)
         await interaction.response.send_message("✅ Đã tắt tính năng tự động cấp vai trò!", ephemeral=True)
 
+        await send_log_to_admin(
+            interaction.guild,
+            title="⚙️ [CÀI ĐẶT] TẮT AUTO-ROLE",
+            description=f"Admin {interaction.user.mention} đã tắt tính năng tự cấp vai trò.",
+            color=discord.Color.orange()
+        )
+
     @commands.Cog.listener()
     async def on_member_join(self, member):
         logger.info(f"Thành viên mới vào server: {member.name} (ID: {member.id})")
         
         # 1. Tự động cấp Role cho thành viên mới
         role = self.get_auto_role(member.guild)
+        role_assigned = "Không"
         if role:
             try:
                 if role < member.guild.me.top_role:
                     await member.add_roles(role, reason="Auto-Role khi gia nhập server")
+                    role_assigned = role.name
                     logger.info(f"Đã cấp thành công role {role.name} cho {member.name}")
                 else:
                     logger.warning(f"Bot không thể cấp role {role.name} vì vai trò của Bot nằm dưới role này!")
@@ -192,6 +216,19 @@ class Welcome(commands.Cog):
             except Exception as e:
                 logger.error(f"Lỗi gửi tin nhắn chào mừng: {e}")
 
+        # 3. GỬI NHẬT KÝ ADMIN
+        await send_log_to_admin(
+            member.guild,
+            title="🚪 [THÀNH VIÊN] THAM GIA SERVER",
+            description=f"Thành viên {member.mention} vừa bước chân vào Server.",
+            color=discord.Color.green(),
+            fields=[
+                ("Tên & ID", f"{member.name} (`{member.id}`)", True),
+                ("Auto-Role đã cấp", f"@{role_assigned}", True),
+                ("Ngày tạo tài khoản", member.created_at.strftime("%d/%m/%Y %H:%M"), False)
+            ]
+        )
+
     @commands.Cog.listener()
     async def on_member_remove(self, member):
         logger.info(f"Thành viên rời server: {member.name} (ID: {member.id})")
@@ -204,25 +241,46 @@ class Welcome(commands.Cog):
             except Exception as e:
                 logger.error(f"Lỗi gửi tin nhắn tiễn biệt: {e}")
 
+        # GỬI NHẬT KÝ ADMIN
+        await send_log_to_admin(
+            member.guild,
+            title="💨 [THÀNH VIÊN] RỜI KHỎI SERVER",
+            description=f"Thành viên **{member.display_name}** (`{member.id}`) đã bấm nút rời khỏi Server.",
+            color=discord.Color.dark_red()
+        )
+
     @commands.Cog.listener()
     async def on_voice_state_update(self, member, before, after):
+        if member.id == self.bot.user.id:
+            return
+
         if before.channel is None and after.channel is not None:
-            if member.id == self.bot.user.id:
-                return
             msg = random.choice(self.vc_join_messages).format(mention=member.mention)
             try:
                 await after.channel.send(msg)
             except Exception:
                 pass
+            
+            await send_log_to_admin(
+                member.guild,
+                title="🎙️ [VOICE] VÀO PHÒNG THOẠI",
+                description=f"{member.mention} vừa vào phòng thoại **{after.channel.name}**.",
+                color=discord.Color.blue()
+            )
 
         elif before.channel is not None and after.channel is None:
-            if member.id == self.bot.user.id:
-                return
             msg = random.choice(self.vc_leave_messages).format(mention=member.mention)
             try:
                 await before.channel.send(msg)
             except Exception:
                 pass
+
+            await send_log_to_admin(
+                member.guild,
+                title="💨 [VOICE] RỜI PHÒNG THOẠI",
+                description=f"{member.mention} vừa rời khỏi phòng thoại **{before.channel.name}**.",
+                color=discord.Color.dark_grey()
+            )
 
 
 async def setup(bot):

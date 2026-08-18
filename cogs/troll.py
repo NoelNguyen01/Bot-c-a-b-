@@ -8,6 +8,7 @@ import random
 import time
 import asyncio
 from typing import Optional
+from cogs.admin_log import send_log_to_admin
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA_DIR = os.path.join(BASE_DIR, "data")
@@ -61,6 +62,14 @@ class DebtView(discord.ui.View):
         for child in self.children:
             child.disabled = True
         await interaction.response.edit_message(content=f"✅ {self.debtor.mention} đã trả xong **{self.amount}k** tiền **{self.reason}** cho {self.creditor.mention}.", embed=None, view=self)
+        
+        await send_log_to_admin(
+            interaction.guild,
+            title="💸 [SỔ NỢ] ĐÃ THANH TOÁN TIỀN",
+            description=f"Con nợ {self.debtor.mention} đã thanh toán **{self.amount}k** cho {self.creditor.mention}.",
+            color=discord.Color.green(),
+            fields=[("Lý do nợ", self.reason, True), ("Người xác nhận", interaction.user.mention, True)]
+        )
 
     @discord.ui.button(label="🔴 Chưa thấy tiền, đòi tiếp!", style=discord.ButtonStyle.danger)
     async def urge_button(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -88,6 +97,14 @@ class DebtView(discord.ui.View):
         for child in self.children:
             child.disabled = True
         await interaction.response.edit_message(content=f"💀 Tội nghiệp {self.debtor.mention} quá nghèo rách mồng tơi, {self.creditor.mention} đã từ bi hỉ xả xóa nợ **{self.amount}k** tiền **{self.reason}** như một ân huệ.", embed=None, view=self)
+        
+        await send_log_to_admin(
+            interaction.guild,
+            title="💀 [SỔ NỢ] XÓA NỢ BỐ THÍ",
+            description=f"Chủ nợ {self.creditor.mention} đã xóa khoản nợ **{self.amount}k** cho {self.debtor.mention}.",
+            color=discord.Color.dark_grey(),
+            fields=[("Lý do nợ", self.reason, True)]
+        )
 
 
 class NemDaModal(discord.ui.Modal, title='Ném đá giấu tay / Tâm sự nặc danh'):
@@ -117,7 +134,6 @@ class NemDaModal(discord.ui.Modal, title='Ném đá giấu tay / Tâm sự nặc
             except Exception:
                 pass
         
-        # Tự động tìm kênh có tên nac-danh, confession, tam-su nếu chưa set
         if not target_channel and interaction.guild:
             for c in interaction.guild.channels:
                 if any(k in c.name.lower() for k in ["nac-danh", "confession", "tam-su", "an-danh", "boc-phot"]):
@@ -135,6 +151,7 @@ class NemDaModal(discord.ui.Modal, title='Ném đá giấu tay / Tâm sự nặc
         config[guild_id]["confession_count"] = count
         save_json(CONFIG_FILE, config)
 
+        # 3. Gửi thư ẩn danh ra kênh công khai
         embed = discord.Embed(
             title=f"📜 Thư Nặc Danh #{count:03d}",
             description=self.confession.value,
@@ -148,6 +165,19 @@ class NemDaModal(discord.ui.Modal, title='Ném đá giấu tay / Tâm sự nặc
                 await target_channel.send(embed=embed)
             except Exception:
                 await interaction.followup.send(embed=embed)
+
+        # 4. GỬI BẢN LOG VẠCH TRẦN DANH TÍNH VÀO KÊNH ADMIN LOG 🕵️
+        await send_log_to_admin(
+            interaction.guild,
+            title="🕵️ [BÓC TRẦN] NGƯỜI GỬI THƯ NẶC DANH",
+            description=f"Thành viên {interaction.user.mention} vừa gửi **Thư Nặc Danh #{count:03d}**.",
+            color=discord.Color.red(),
+            fields=[
+                ("Tên & ID người gửi", f"{interaction.user.name} (`{interaction.user.id}`)", True),
+                ("Kênh đăng tải", target_channel.mention if target_channel else "Không rõ", True),
+                ("Nội dung gốc", f"```{self.confession.value}```", False)
+            ]
+        )
 
 
 class TrollCog(commands.Cog):
@@ -200,7 +230,7 @@ class TrollCog(commands.Cog):
 
         embed.add_field(
             name="⚙️ 7. Lệnh Quản Trị (Dành Cho Admin 🔒)",
-            value="• `/set_confession #channel`: Cài đặt kênh riêng tiếp nhận toàn bộ thư nặc danh.\n• `/set_welcome #channel`: Cài đặt kênh gửi thông báo chào mừng & tiễn thành viên.\n• `/set_autorole @role`: Tự động cấp vai trò cho thành viên mới khi vào Server.\n• `/clear_autorole`: Tắt tính năng tự cấp vai trò.\n• `/set_rule <nội_dung>`: Thêm nội quy riêng cho Server.",
+            value="• `/set_admin_log #channel`: Cài đặt kênh bí mật giám sát toàn bộ hoạt động & danh tính nặc danh.\n• `/set_confession #channel`: Cài đặt kênh riêng tiếp nhận thư nặc danh.\n• `/set_welcome #channel`: Cài đặt kênh chào mừng & tiễn thành viên.\n• `/set_autorole @role`: Tự động cấp vai trò cho người mới.\n• `/set_rule <nội_dung>`: Thêm nội quy riêng cho Server.",
             inline=False
         )
 
@@ -224,6 +254,13 @@ class TrollCog(commands.Cog):
         config[guild_id]["confession_channel_id"] = channel.id
         save_json(CONFIG_FILE, config)
         await interaction.response.send_message(f"✅ Đã thiết lập kênh nhận thư nặc danh tại {channel.mention}!", ephemeral=True)
+
+        await send_log_to_admin(
+            interaction.guild,
+            title="⚙️ [CÀI ĐẶT] THIẾT LẬP KÊNH NẶC DANH",
+            description=f"Admin {interaction.user.mention} đã đổi kênh nhận thư nặc danh sang {channel.mention}.",
+            color=discord.Color.gold()
+        )
 
     @app_commands.command(name="rule", description="Xem 10 điều nội quy của Server")
     async def rule(self, interaction: discord.Interaction):
@@ -276,6 +313,13 @@ class TrollCog(commands.Cog):
         save_json(CONFIG_FILE, config)
         await interaction.response.send_message("✅ Đã cập nhật nội quy riêng cho Server thành công! Gõ `/rule` để xem.", ephemeral=True)
 
+        await send_log_to_admin(
+            interaction.guild,
+            title="⚙️ [CÀI ĐẶT] THAY ĐỔI NỘI QUY SERVER",
+            description=f"Admin {interaction.user.mention} vừa cập nhật nội quy riêng:\n```{noi_dung}```",
+            color=discord.Color.gold()
+        )
+
     @app_commands.command(name="doino", description="Đòi nợ một đứa nào đó")
     async def doino(self, interaction: discord.Interaction, con_no: discord.Member, so_tien: int, ly_do: str):
         if con_no.id == interaction.user.id:
@@ -309,6 +353,14 @@ class TrollCog(commands.Cog):
         
         view = DebtView(debtor=con_no, creditor=interaction.user, amount=so_tien, reason=ly_do, debt_id=debt_id)
         await interaction.response.send_message(content=con_no.mention, embed=embed, view=view)
+
+        await send_log_to_admin(
+            interaction.guild,
+            title="💸 [SỔ NỢ] TẠO KHOẢN ĐÒI NỢ MỚI",
+            description=f"{interaction.user.mention} vừa lập sổ đòi nợ {con_no.mention} số tiền **{so_tien}k**.",
+            color=discord.Color.orange(),
+            fields=[("Lý do", ly_do, True)]
+        )
 
     @app_commands.command(name="so_no", description="Xem bảng xếp hạng nợ nần")
     async def so_no(self, interaction: discord.Interaction):
@@ -408,6 +460,14 @@ class TrollCog(commands.Cog):
         
         await interaction.response.send_message(f"⚡ Bắt đầu quy trình réo tên {user.mention} ({so_lan} lần)...", ephemeral=True)
         
+        await send_log_to_admin(
+            interaction.guild,
+            title="📢 [SPAM TAG] HOẠT ĐỘNG RÉO TÊN",
+            description=f"{interaction.user.mention} vừa dùng lệnh `/spamtag` réo tên {user.mention} **{so_lan} lần**.",
+            color=discord.Color.yellow(),
+            fields=[("Nội dung spam", noi_dung, False)]
+        )
+
         for _ in range(so_lan):
             prefix = random.choice(prefixes).format(tag=user.mention)
             msg_content = f"{prefix} - {noi_dung}"
