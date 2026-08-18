@@ -16,6 +16,7 @@ CONFIG_FILE = os.path.join(DATA_DIR, "config.json")
 
 CLOWN_ICON_URL = "https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/1f921.png"
 SCROLL_ICON_URL = "https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/1f4dc.png"
+SECRET_ICON_URL = "https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/1f977.png"
 
 def load_json(filepath):
     if not os.path.exists(filepath):
@@ -89,35 +90,64 @@ class DebtView(discord.ui.View):
         await interaction.response.edit_message(content=f"💀 Tội nghiệp {self.debtor.mention} quá nghèo rách mồng tơi, {self.creditor.mention} đã từ bi hỉ xả xóa nợ **{self.amount}k** tiền **{self.reason}** như một ân huệ.", embed=None, view=self)
 
 
-class NemDaModal(discord.ui.Modal, title='Ném đá giấu tay'):
+class NemDaModal(discord.ui.Modal, title='Ném đá giấu tay / Tâm sự nặc danh'):
     confession = discord.ui.TextInput(
-        label='Nội dung muốn ném đá:',
+        label='Nội dung gửi ẩn danh:',
         style=discord.TextStyle.paragraph,
-        placeholder='Gõ những lời cay đắng vào đây...',
+        placeholder='Gõ tâm sự hoặc những lời cay đắng vào đây...',
         required=True,
-        max_length=1000
+        max_length=1500
     )
 
     async def on_submit(self, interaction: discord.Interaction):
-        await interaction.response.send_message('Đã gửi thành công, không ai biết là mày đâu 🤫', ephemeral=True)
+        await interaction.response.send_message('🤫 Đã gửi thành công! Danh tính của bạn được giữ bí mật 100%.', ephemeral=True)
         
-        names = ['Kẻ giấu mặt 🥷', 'Ninja làng Lá 🍃', 'Bóng ma học đường 👻']
+        names = ['Kẻ giấu mặt 🥷', 'Ninja làng Lá 🍃', 'Bóng ma học đường 👻', 'Thần bí nhân 🎭', 'Người qua đường 🕶️']
         author_name = random.choice(names)
         
-        embed = discord.Embed(
-            title="📜 Thư nặc danh bí mật",
-            description=self.confession.value,
-            color=discord.Color.dark_gray()
-        )
-        embed.set_author(name=author_name)
+        # 1. Tìm kênh nhận thư nặc danh
+        config = load_json(CONFIG_FILE)
+        guild_id = str(interaction.guild_id)
+        target_channel_id = config.get(guild_id, {}).get("confession_channel_id")
         
-        try:
-            if interaction.channel:
-                await interaction.channel.send(embed=embed)
-            else:
+        target_channel = None
+        if target_channel_id and interaction.guild:
+            try:
+                target_channel = interaction.guild.get_channel(int(target_channel_id))
+            except Exception:
+                pass
+        
+        # Tự động tìm kênh có tên nac-danh, confession, tam-su nếu chưa set
+        if not target_channel and interaction.guild:
+            for c in interaction.guild.channels:
+                if any(k in c.name.lower() for k in ["nac-danh", "confession", "tam-su", "an-danh", "boc-phot"]):
+                    if hasattr(c, "send"):
+                        target_channel = c
+                        break
+        
+        if not target_channel:
+            target_channel = interaction.channel
+
+        # 2. Đếm số thứ tự thư
+        count = config.get(guild_id, {}).get("confession_count", 0) + 1
+        if guild_id not in config:
+            config[guild_id] = {}
+        config[guild_id]["confession_count"] = count
+        save_json(CONFIG_FILE, config)
+
+        embed = discord.Embed(
+            title=f"📜 Thư Nặc Danh #{count:03d}",
+            description=self.confession.value,
+            color=discord.Color.dark_magenta()
+        )
+        embed.set_author(name=author_name, icon_url=SECRET_ICON_URL)
+        embed.set_footer(text="Gõ lệnh /nemda để gửi tâm sự nặc danh ẩn danh 100%!")
+        
+        if target_channel and hasattr(target_channel, "send"):
+            try:
+                await target_channel.send(embed=embed)
+            except Exception:
                 await interaction.followup.send(embed=embed)
-        except Exception:
-            await interaction.followup.send(embed=embed)
 
 
 class TrollCog(commands.Cog):
@@ -134,37 +164,43 @@ class TrollCog(commands.Cog):
         
         embed.add_field(
             name="⭐ 1. Hệ Thống Cày Cấp & Level",
-            value="• `/rank [@user]`: Xem thẻ cấp độ, tổng EXP và thanh tiến trình thăng cấp.\n• `/top`: Xem Bảng Phong Thần Top 10 cao thủ cày cấp của Server.\n*(💬 Nhắn tin chat + 🎙️ Treo phòng Voice để nhận EXP tự động mỗi phút)*",
+            value="• `/rank [@user]`: Xem thẻ cấp độ, tổng EXP và tiến trình thăng cấp.\n• `/top`: Xem Bảng Phong Thần Top 10 cao thủ cày cấp.\n*(💬 Nhắn tin chat + 🎙️ Treo phòng Voice để nhận EXP tự động mỗi phút)*",
             inline=False
         )
 
         embed.add_field(
-            name="🤡 2. Tính Năng Giải Trí & Troll",
-            value="• `/checklop @user`: Đo độ simp / lụy tình từ 0% đến 100% kèm chẩn đoán.\n• `/joker @user <lý_do>`: Tặng danh hiệu hề chúa + văn mẫu Joker.\n• `/nemda`: Mở hộp thoại gửi tin nhắn bí mật hoàn toàn ẩn danh.\n• `/spamtag @user <nội_dung> <số_lần>`: Spam tag réo tên (1-10 lần, cooldown 45s).",
+            name="🥷 2. Ném Đá Giấu Tay & Tâm Sự Nặc Danh",
+            value="• `/nemda`: Gửi tâm sự/bóc phốt ẩn danh 100% về thẳng kênh nặc danh riêng.",
             inline=False
         )
 
         embed.add_field(
-            name="💸 3. Sổ Ghi Nợ Mặt Dày",
+            name="🤡 3. Tính Năng Giải Trí & Troll",
+            value="• `/checklop @user`: Đo độ simp / lụy tình từ 0% đến 100% kèm chẩn đoán.\n• `/joker @user <lý_do>`: Tặng danh hiệu hề chúa + văn mẫu Joker.\n• `/spamtag @user <nội_dung> <số_lần>`: Spam tag réo tên (1-10 lần, cooldown 45s).",
+            inline=False
+        )
+
+        embed.add_field(
+            name="💸 4. Sổ Ghi Nợ Mặt Dày",
             value="• `/doino @user <số_tiền> <lý_do>`: Ghi sổ nợ kèm 3 nút tương tác đòi tiền.\n• `/so_no`: Xem danh sách top nợ nần nhiều nhất server.",
             inline=False
         )
 
         embed.add_field(
-            name="🔊 4. Chị Google Đọc Hộ Trong Voice",
+            name="🔊 5. Chị Google Đọc Hộ Trong Voice",
             value="• `/noi <nội_dung>`: Chị Google tự động bay vào phòng voice đọc văn bản bằng tiếng Việt.\n• `/join`: Mời bot vào phòng thoại.\n• `/leave`: Cho bot rời phòng thoại.",
             inline=False
         )
 
         embed.add_field(
-            name="📜 5. Nội Quy Server",
+            name="📜 6. Nội Quy Server",
             value="• `/rule`: Xem 10 điều quy định chung của Server.",
             inline=False
         )
 
         embed.add_field(
-            name="⚙️ 6. Lệnh Quản Trị (Dành Cho Admin 🔒)",
-            value="• `/set_welcome #channel`: Cài đặt kênh gửi thông báo chào mừng & tiễn thành viên.\n• `/set_autorole @role`: Tự động cấp vai trò cho thành viên mới khi vào Server.\n• `/clear_autorole`: Tắt tính năng tự cấp vai trò.\n• `/set_rule <nội_dung>`: Thêm nội quy riêng cho Server.",
+            name="⚙️ 7. Lệnh Quản Trị (Dành Cho Admin 🔒)",
+            value="• `/set_confession #channel`: Cài đặt kênh riêng tiếp nhận toàn bộ thư nặc danh.\n• `/set_welcome #channel`: Cài đặt kênh gửi thông báo chào mừng & tiễn thành viên.\n• `/set_autorole @role`: Tự động cấp vai trò cho thành viên mới khi vào Server.\n• `/clear_autorole`: Tắt tính năng tự cấp vai trò.\n• `/set_rule <nội_dung>`: Thêm nội quy riêng cho Server.",
             inline=False
         )
 
@@ -172,6 +208,22 @@ class TrollCog(commands.Cog):
         embed.set_thumbnail(url=CLOWN_ICON_URL)
         
         await interaction.response.send_message(embed=embed)
+
+    @app_commands.command(name="set_confession", description="Cài đặt kênh riêng tiếp nhận toàn bộ thư nặc danh / confession (Admin)")
+    @app_commands.default_permissions(administrator=True)
+    async def set_confession(self, interaction: discord.Interaction, channel: discord.abc.GuildChannel):
+        user_perms = interaction.user.guild_permissions
+        if not (user_perms.administrator or user_perms.manage_guild or user_perms.manage_channels):
+            await interaction.response.send_message("❌ Mày phải có quyền Quản trị viên (Admin) mới được dùng lệnh này!", ephemeral=True)
+            return
+
+        config = load_json(CONFIG_FILE)
+        guild_id = str(interaction.guild_id)
+        if guild_id not in config:
+            config[guild_id] = {}
+        config[guild_id]["confession_channel_id"] = channel.id
+        save_json(CONFIG_FILE, config)
+        await interaction.response.send_message(f"✅ Đã thiết lập kênh nhận thư nặc danh tại {channel.mention}!", ephemeral=True)
 
     @app_commands.command(name="rule", description="Xem 10 điều nội quy của Server")
     async def rule(self, interaction: discord.Interaction):
@@ -340,7 +392,7 @@ class TrollCog(commands.Cog):
         embed.set_thumbnail(url=CLOWN_ICON_URL)
         await interaction.response.send_message(content=user.mention, embed=embed)
 
-    @app_commands.command(name="nemda", description="Ném đá giấu tay (Gửi ẩn danh)")
+    @app_commands.command(name="nemda", description="Ném đá giấu tay / Gửi tâm sự nặc danh (Bí mật 100%)")
     async def nemda(self, interaction: discord.Interaction):
         await interaction.response.send_modal(NemDaModal())
 
