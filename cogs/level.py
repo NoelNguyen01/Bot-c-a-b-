@@ -14,20 +14,19 @@ logger = logging.getLogger("LevelSystem")
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA_DIR = os.path.join(BASE_DIR, "data")
 LEVELS_FILE = os.path.join(DATA_DIR, "levels.json")
-CONFIG_FILE = os.path.join(DATA_DIR, "config.json")
 
-def load_json(filepath):
-    if not os.path.exists(filepath):
+def load_levels():
+    if not os.path.exists(LEVELS_FILE):
         return {}
-    with open(filepath, "r", encoding="utf-8") as f:
+    with open(LEVELS_FILE, "r", encoding="utf-8") as f:
         try:
             return json.load(f)
         except json.JSONDecodeError:
             return {}
 
-def save_json(filepath, data):
+def save_levels(data):
     os.makedirs(DATA_DIR, exist_ok=True)
-    with open(filepath, "w", encoding="utf-8") as f:
+    with open(LEVELS_FILE, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=4, ensure_ascii=False)
 
 
@@ -43,6 +42,7 @@ def level_from_xp(xp: int) -> int:
 class LevelCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
+        self.levels = load_levels()
         self.msg_cooldowns = {}  # { (guild_id, user_id): last_timestamp }
         self.voice_xp_loop.start()
 
@@ -51,19 +51,18 @@ class LevelCog(commands.Cog):
 
     def add_xp(self, guild_id: int, user_id: int, xp_amount: int) -> tuple[int, int, bool]:
         """Cộng XP cho user. Trả về (old_level, new_level, has_leveled_up)"""
-        levels = load_json(LEVELS_FILE)
         g_id = str(guild_id)
         u_id = str(user_id)
 
-        if g_id not in levels:
-            levels[g_id] = {}
-        if u_id not in levels[g_id]:
-            levels[g_id][u_id] = {"xp": 0}
+        if g_id not in self.levels:
+            self.levels[g_id] = {}
+        if u_id not in self.levels[g_id]:
+            self.levels[g_id][u_id] = {"xp": 0}
 
-        old_xp = levels[g_id][u_id].get("xp", 0)
+        old_xp = self.levels[g_id][u_id].get("xp", 0)
         new_xp = old_xp + xp_amount
-        levels[g_id][u_id]["xp"] = new_xp
-        save_json(LEVELS_FILE, levels)
+        self.levels[g_id][u_id]["xp"] = new_xp
+        save_levels(self.levels)
 
         old_level = level_from_xp(old_xp)
         new_level = level_from_xp(new_xp)
@@ -71,7 +70,7 @@ class LevelCog(commands.Cog):
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
-        # Bỏ qua tin nhắn từ Bot hoặc tin nhắn ngoài Server
+        # Bỏ qua tin nhắn từ bot hoặc tin nhắn riêng (DM)
         if message.author.bot or not message.guild:
             return
 
@@ -79,15 +78,16 @@ class LevelCog(commands.Cog):
         guild_id = message.guild.id
         now = time.time()
 
-        # Cooldown cộng XP chat: 60s / lần để chống spam
+        # Cooldown cộng XP chat: 45s / lần
         key = (guild_id, user_id)
         last_time = self.msg_cooldowns.get(key, 0)
-        if now - last_time < 60:
+        if now - last_time < 45:
             return
 
         self.msg_cooldowns[key] = now
         gained_xp = random.randint(15, 25)
         old_lvl, new_lvl, leveled_up = self.add_xp(guild_id, user_id, gained_xp)
+        logger.info(f"Cộng {gained_xp} XP cho {message.author.name} (Tổng: {self.levels[str(guild_id)][str(user_id)]['xp']} XP)")
 
         if leveled_up:
             embed = discord.Embed(
@@ -108,11 +108,12 @@ class LevelCog(commands.Cog):
         
         for guild in self.bot.guilds:
             for vc in guild.voice_channels:
-                # Chỉ cộng XP nếu phòng có từ 1 người trở lên và không phải bot
-                real_members = [m for m in vc.members if not m.bot and not m.voice.self_deaf]
+                # Bỏ qua bot và người mute toàn phần
+                real_members = [m for m in vc.members if not m.bot and (not m.voice or not m.voice.self_deaf)]
                 for member in real_members:
                     gained_xp = random.randint(10, 20)
                     old_lvl, new_lvl, leveled_up = self.add_xp(guild.id, member.id, gained_xp)
+                    logger.info(f"Cộng {gained_xp} Voice XP cho {member.name}")
                     
                     if leveled_up:
                         embed = discord.Embed(
@@ -136,8 +137,7 @@ class LevelCog(commands.Cog):
         guild_id = str(interaction.guild_id)
         user_id = str(target.id)
 
-        levels = load_json(LEVELS_FILE)
-        guild_levels = levels.get(guild_id, {})
+        guild_levels = self.levels.get(guild_id, {})
         
         # Sắp xếp danh sách tính hạng
         sorted_users = sorted(guild_levels.items(), key=lambda x: x[1].get("xp", 0), reverse=True)
@@ -168,7 +168,7 @@ class LevelCog(commands.Cog):
             color=discord.Color.purple()
         )
         embed.set_thumbnail(url=target.display_avatar.url)
-        embed.add_field(name="🏆 Thứ hạng", value=f"**{rank_pos}** / {len(sorted_users)}", inline=True)
+        embed.add_field(name="🏆 Thứ hạng", value=f"**{rank_pos}** / {max(1, len(sorted_users))}", inline=True)
         embed.add_field(name="⭐ Cấp độ (Level)", value=f"**Level {current_lvl}**", inline=True)
         embed.add_field(name="✨ Tổng EXP", value=f"**{current_xp:,}** XP", inline=True)
         
@@ -184,10 +184,9 @@ class LevelCog(commands.Cog):
     @app_commands.command(name="top", description="Xem Bảng Xếp Hạng Top 10 cao thủ cày cấp Level cao nhất Server")
     async def top(self, interaction: discord.Interaction):
         guild_id = str(interaction.guild_id)
-        levels = load_json(LEVELS_FILE)
-        guild_levels = levels.get(guild_id, {})
+        guild_levels = self.levels.get(guild_id, {})
 
-        if not guild_levels:
+        if not guild_levels or not any(data.get("xp", 0) > 0 for data in guild_levels.values()):
             await interaction.response.send_message("Chưa có dữ liệu cày cấp nào trong Server. Hãy tích cực nhắn tin và treo Voice nhé!", ephemeral=True)
             return
 
