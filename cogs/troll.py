@@ -112,7 +112,7 @@ class TrollCog(commands.Cog):
     async def hdsd(self, interaction: discord.Interaction):
         embed = discord.Embed(
             title="📖 CẨM NANG SỬ DỤNG BOT - CHÚA TỂ CÀ KHỊA 🤡",
-            description="Chào mừng bạn đến với chuồng hề! Dưới đây là toàn bộ bí kíp để quậy phá và sinh tồn trong server.",
+            description="Chào mừng bạn đến với chuồng hề! Dưới đây là toàn bộ bí kíp để quậy phá và quản trị server.",
             color=discord.Color.purple()
         )
         
@@ -159,8 +159,8 @@ class TrollCog(commands.Cog):
         )
 
         embed.add_field(
-            name="⚙️ 8. Cài Đặt Kênh Chào Mừng",
-            value="• `/set_welcome #channel`: Chỉ định kênh gửi thông báo chào đón/tiễn thành viên.",
+            name="⚙️ 8. Quản Trị & Cài Đặt (Admin)",
+            value="• `/set_autorole @role`: Tự động cấp vai trò cho thành viên mới khi vào Server.\n• `/clear_autorole`: Tắt tự động cấp vai trò.\n• `/set_welcome #channel`: Chỉ định kênh gửi thông báo chào đón/tiễn.",
             inline=False
         )
 

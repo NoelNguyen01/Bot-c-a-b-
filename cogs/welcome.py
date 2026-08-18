@@ -60,18 +60,58 @@ class Welcome(commands.Cog):
         save_config(config)
         await interaction.response.send_message(f"✅ Đã cài đặt kênh chào mừng thành viên tại {channel.mention}!", ephemeral=True)
 
+    @app_commands.command(name="set_autorole", description="Cài đặt vai trò tự động cấp cho thành viên mới khi vào Server")
+    @app_commands.checks.has_permissions(administrator=True)
+    async def set_autorole(self, interaction: discord.Interaction, role: discord.Role):
+        # Kiểm tra xem bot có quyền cấp role này không
+        if role >= interaction.guild.me.top_role:
+            await interaction.response.send_message(
+                "❌ Vai trò này cao hơn hoặc bằng vai trò của Bot! Bạn hãy kéo vai trò của Bot lên cao hơn vai trò này trong cài đặt Server nhé.",
+                ephemeral=True
+            )
+            return
+
+        config = load_config()
+        guild_id = str(interaction.guild_id)
+        if guild_id not in config:
+            config[guild_id] = {}
+        config[guild_id]["autorole_id"] = role.id
+        save_config(config)
+        await interaction.response.send_message(f"✅ Đã thiết lập Auto-Role! Từ giờ ai vào Server sẽ tự động được nhận vai trò {role.mention}.", ephemeral=True)
+
+    @app_commands.command(name="clear_autorole", description="Tắt tính năng tự động cấp vai trò cho thành viên mới")
+    @app_commands.checks.has_permissions(administrator=True)
+    async def clear_autorole(self, interaction: discord.Interaction):
+        config = load_config()
+        guild_id = str(interaction.guild_id)
+        if guild_id in config and "autorole_id" in config[guild_id]:
+            del config[guild_id]["autorole_id"]
+            save_config(config)
+        await interaction.response.send_message("✅ Đã tắt tính năng tự động cấp vai trò!", ephemeral=True)
+
     @commands.Cog.listener()
     async def on_member_join(self, member):
         config = load_config()
         guild_id = str(member.guild.id)
-        channel_id = config.get(guild_id, {}).get("welcome_channel_id")
         
+        # 1. Tự động cấp Role cho thành viên mới nếu có cài đặt
+        autorole_id = config.get(guild_id, {}).get("autorole_id")
+        if autorole_id:
+            role = member.guild.get_role(autorole_id)
+            if role:
+                try:
+                    await member.add_roles(role, reason="Auto-Role khi gia nhập server")
+                except (discord.Forbidden, discord.HTTPException):
+                    pass
+
+        # 2. Gửi tin nhắn chào mừng bựa
+        channel_id = config.get(guild_id, {}).get("welcome_channel_id")
         channel = member.guild.get_channel(channel_id) if channel_id else member.guild.system_channel
         if channel:
             msg = random.choice(self.join_messages).format(tag=member.mention)
             try:
                 await channel.send(msg)
-            except discord.Forbidden:
+            except (discord.Forbidden, discord.HTTPException):
                 pass
 
     @commands.Cog.listener()
@@ -85,7 +125,7 @@ class Welcome(commands.Cog):
             msg = random.choice(self.leave_messages).format(name=member.display_name)
             try:
                 await channel.send(msg)
-            except discord.Forbidden:
+            except (discord.Forbidden, discord.HTTPException):
                 pass
 
     @commands.Cog.listener()
@@ -94,18 +134,16 @@ class Welcome(commands.Cog):
         if before.channel is None and after.channel is not None:
             msg = random.choice(self.vc_join_messages).format(mention=member.mention)
             try:
-                # Gửi thẳng vào Text Chat của chính phòng Voice đó
                 await after.channel.send(msg)
-            except (discord.Forbidden, AttributeError):
+            except (discord.Forbidden, AttributeError, discord.HTTPException):
                 pass
 
         # 2. Khi có người RỜI Voice
         elif before.channel is not None and after.channel is None:
             msg = random.choice(self.vc_leave_messages).format(mention=member.mention)
             try:
-                # Gửi thẳng vào Text Chat của chính phòng Voice đó
                 await before.channel.send(msg)
-            except (discord.Forbidden, AttributeError):
+            except (discord.Forbidden, AttributeError, discord.HTTPException):
                 pass
 
 
