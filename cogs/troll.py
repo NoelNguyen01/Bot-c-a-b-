@@ -242,3 +242,58 @@ class TrollCog(commands.Cog):
 
 async def setup(bot):
     await bot.add_cog(TrollCog(bot))
+
+    @app_commands.command(name="hdsd", description="Xem cẩm nang hướng dẫn sử dụng toàn bộ lệnh của Bot")
+    async def hdsd(self, interaction: discord.Interaction):
+        embed = discord.Embed(
+            title="📖 CẨM NANG SỬ DỤNG BOT - CHÚA TỂ CÀ KHỊA 🤡",
+            description="Chào mừng bạn đến với chuồng hề! Dưới đây là toàn bộ bí kíp để quậy phá và sinh tồn trong server.",
+            color=discord.Color.purple()
+        )
+        
+        embed.add_field(
+            name="💸 1. Máy Đòi Nợ Mặt Dày",
+            value="• `/doino @user <số_tiền> <lý_do>`: Ghi sổ nợ, tag con nợ kèm 3 nút bấm tương tác.\n• `/so_no`: Xem bảng phong thần top nợ dai nhất server.",
+            inline=False
+        )
+        
+        embed.add_field(
+            name="🛞 2. Quét Độ Lốp Dự Phòng",
+            value="• `/checklop @user`: Đo độ simp / lụy tình từ 0% đến 100% kèm chẩn đoán độ lốp xe.",
+            inline=False
+        )
+
+        embed.add_field(
+            name="🃏 3. Thả Joker & Hề Chúa",
+            value="• `/joker @user <lý_do>`: Phong danh Nghệ sĩ Ưu tú Ngành Hề + tặng văn mẫu Joker.",
+            inline=False
+        )
+
+        embed.add_field(
+            name="🥷 4. Ném Đá Giấu Tay (Ẩn Danh)",
+            value="• `/nemda`: Bật hộp thoại bí mật để bóc phốt nặc danh. Không ai biết bạn là ai!",
+            inline=False
+        )
+
+        embed.add_field(
+            name="📢 5. Réo Tên Vong Hồn (Spam Tag)",
+            value="• `/spamtag @user <nội_dung> <số_lần>`: Spam tag réo tên liên tục (tối đa 10 lần, cooldown 45s).",
+            inline=False
+        )
+
+        embed.add_field(
+            name="🔊 6. Chị Google Đọc Hộ Trong Voice",
+            value="• `/join`: Mời chị Google vào phòng voice bạn đang ngồi.\n• `/noi <nội_dung>`: Chị Google đọc văn bản bằng tiếng Việt cực truyền cảm.\n• `/leave`: Cho chị Google rời phòng.",
+            inline=False
+        )
+
+        embed.add_field(
+            name="⚙️ 7. Cài Đặt Kênh Chào Mừng",
+            value="• `/set_welcome #channel`: Chỉ định kênh gửi thông báo chào đón/tiễn thành viên.",
+            inline=False
+        )
+
+        embed.set_footer(text="Gõ / để xem danh sách lệnh gợi ý trực tiếp của Discord!")
+        embed.set_thumbnail(url="https://i.imgur.com/gO0t2Gk.png")
+        
+        await interaction.response.send_message(embed=embed)
