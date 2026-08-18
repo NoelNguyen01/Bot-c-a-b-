@@ -5,6 +5,7 @@ import os
 import sys
 from pathlib import Path
 
+import aiohttp.web
 import discord
 from discord import app_commands
 from discord.ext import commands
@@ -23,6 +24,18 @@ load_dotenv()
 TOKEN = os.getenv("DISCORD_TOKEN")
 
 
+# Web server nhỏ để tương thích 100% với Render / Koyeb Web Service
+async def start_keep_alive_web():
+    port = int(os.getenv("PORT", 8080))
+    app = aiohttp.web.Application()
+    app.router.add_get("/", lambda r: aiohttp.web.Response(text="🤡 Bot Chúa Tể Cà Khịa đang hoạt động 24/7!"))
+    runner = aiohttp.web.AppRunner(app)
+    await runner.setup()
+    site = aiohttp.web.TCPSite(runner, "0.0.0.0", port)
+    await site.start()
+    logger.info(f"🌐 Web keep-alive server đang chạy trên cổng {port}")
+
+
 class TrollBot(commands.Bot):
     """Lớp Bot chính kế thừa từ commands.Bot của discord.py 2.x"""
 
@@ -37,6 +50,10 @@ class TrollBot(commands.Bot):
 
     async def setup_hook(self) -> None:
         """Tự động tải tất cả các cogs trong thư mục cogs/ và thiết lập error handler cho Slash Commands"""
+        # Bật web server nếu chạy trên cloud (Render/Koyeb)
+        if os.getenv("PORT") or os.getenv("RENDER"):
+            asyncio.create_task(start_keep_alive_web())
+
         cogs_dir = Path(__file__).parent / "cogs"
         if cogs_dir.exists() and cogs_dir.is_dir():
             for file in cogs_dir.glob("*.py"):
@@ -75,13 +92,13 @@ class TrollBot(commands.Bot):
         """Sự kiện kích hoạt khi bot sẵn sàng hoạt động"""
         logger.info(f"Bot đã đăng nhập thành công: {self.user} (ID: {self.user.id})")
 
-        # Xóa sạch các lệnh trùng lặp trên từng server và chỉ đồng bộ 1 bản duy nhất
+        # Xóa các lệnh guild cũ nếu có và sync Global duy nhất
         for guild in self.guilds:
             try:
                 self.tree.clear_commands(guild=guild)
                 await self.tree.sync(guild=guild)
             except Exception as e:
-                logger.error(f"Lỗi xóa cache guild {guild.name}: {e}")
+                logger.error(f"Lỗi clear guild {guild.name}: {e}")
 
         # Đồng bộ danh sách lệnh chuẩn
         synced = await self.tree.sync()
