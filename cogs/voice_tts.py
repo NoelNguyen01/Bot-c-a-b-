@@ -11,19 +11,38 @@ class VoiceTTS(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
+    def get_user_voice_channel(self, interaction: discord.Interaction):
+        # 1. Kiểm tra từ interaction.user.voice
+        if hasattr(interaction.user, "voice") and interaction.user.voice and interaction.user.voice.channel:
+            return interaction.user.voice.channel
+        
+        # 2. Nếu đang gõ lệnh trong chính Text Chat của phòng Voice
+        if isinstance(interaction.channel, discord.VoiceChannel):
+            return interaction.channel
+
+        # 3. Quét trực tiếp danh sách thành viên trong các phòng voice của Server
+        if interaction.guild:
+            for vc in interaction.guild.voice_channels:
+                for member in vc.members:
+                    if member.id == interaction.user.id:
+                        return vc
+        return None
+
     @app_commands.command(name="join", description="Gọi chị Google vào phòng thoại")
     async def join(self, interaction: discord.Interaction):
-        if not interaction.user.voice:
+        channel = self.get_user_voice_channel(interaction)
+        if not channel:
             await interaction.response.send_message("Mày phải vào phòng thoại trước chứ!", ephemeral=True)
             return
         
-        channel = interaction.user.voice.channel
         try:
             if interaction.guild.voice_client:
-                await interaction.guild.voice_client.move_to(channel)
+                if interaction.guild.voice_client.channel.id != channel.id:
+                    await interaction.guild.voice_client.move_to(channel)
+                await interaction.response.send_message("Chị Google đã vào phòng, đứa nào câm mic thì gõ lệnh /noi chị đọc hộ.")
             else:
                 await channel.connect()
-            await interaction.response.send_message("Chị Google đã vào phòng, đứa nào câm mic thì gõ lệnh /noi chị đọc hộ.")
+                await interaction.response.send_message("Chị Google đã vào phòng, đứa nào câm mic thì gõ lệnh /noi chị đọc hộ.")
         except Exception as e:
             await interaction.response.send_message(f"Không thể vào phòng thoại: {e}", ephemeral=True)
 
@@ -43,8 +62,17 @@ class VoiceTTS(commands.Cog):
     async def noi(self, interaction: discord.Interaction, noi_dung: str):
         voice_client = interaction.guild.voice_client
         if not voice_client or not voice_client.is_connected():
-            await interaction.response.send_message("Mày chưa gọi chị vào phòng, dùng /join trước đi!", ephemeral=True)
-            return
+            # Tự động kết nối vào phòng voice nếu người dùng đang ở trong voice
+            channel = self.get_user_voice_channel(interaction)
+            if channel:
+                try:
+                    voice_client = await channel.connect()
+                except Exception:
+                    pass
+            
+            if not voice_client or not voice_client.is_connected():
+                await interaction.response.send_message("Mày chưa gọi chị vào phòng, dùng /join trước đi!", ephemeral=True)
+                return
 
         if voice_client.is_playing():
             await interaction.response.send_message("Từ từ, chị đang nói!", ephemeral=True)
