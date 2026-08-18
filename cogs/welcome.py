@@ -2,10 +2,12 @@
 import discord
 from discord.ext import commands
 from discord import app_commands
-from typing import Union
 import random
 import json
 import os
+import logging
+
+logger = logging.getLogger("Welcome")
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA_DIR = os.path.join(BASE_DIR, "data")
@@ -122,53 +124,73 @@ class Welcome(commands.Cog):
         # 1. Tự động cấp Role cho thành viên mới nếu có cài đặt
         autorole_id = config.get(guild_id, {}).get("autorole_id")
         if autorole_id:
-            role = member.guild.get_role(autorole_id)
+            role = member.guild.get_role(int(autorole_id))
             if role:
                 try:
                     await member.add_roles(role, reason="Auto-Role khi gia nhập server")
-                except (discord.Forbidden, discord.HTTPException):
-                    pass
+                except Exception as e:
+                    logger.error(f"Lỗi cấp Auto-Role: {e}")
 
         # 2. Gửi tin nhắn chào mừng bựa
         channel_id = config.get(guild_id, {}).get("welcome_channel_id")
-        channel = member.guild.get_channel(channel_id) if channel_id else member.guild.system_channel
+        channel = None
+        if channel_id:
+            try:
+                channel = member.guild.get_channel(int(channel_id)) or await member.guild.fetch_channel(int(channel_id))
+            except Exception:
+                pass
+        if not channel:
+            channel = member.guild.system_channel
+
         if channel:
             msg = random.choice(self.join_messages).format(tag=member.mention)
             try:
                 await channel.send(msg)
-            except (discord.Forbidden, discord.HTTPException):
-                pass
+            except Exception as e:
+                logger.error(f"Lỗi gửi tin nhắn chào mừng: {e}")
 
     @commands.Cog.listener()
     async def on_member_remove(self, member):
         config = load_config()
         guild_id = str(member.guild.id)
         channel_id = config.get(guild_id, {}).get("welcome_channel_id")
-        
-        channel = member.guild.get_channel(channel_id) if channel_id else member.guild.system_channel
+        channel = None
+        if channel_id:
+            try:
+                channel = member.guild.get_channel(int(channel_id)) or await member.guild.fetch_channel(int(channel_id))
+            except Exception:
+                pass
+        if not channel:
+            channel = member.guild.system_channel
+
         if channel:
             msg = random.choice(self.leave_messages).format(name=member.display_name)
             try:
                 await channel.send(msg)
-            except (discord.Forbidden, discord.HTTPException):
-                pass
+            except Exception as e:
+                logger.error(f"Lỗi gửi tin nhắn tiễn biệt: {e}")
 
     @commands.Cog.listener()
     async def on_voice_state_update(self, member, before, after):
         # 1. Khi có người VÀO Voice
         if before.channel is None and after.channel is not None:
+            # Bỏ qua chính con bot
+            if member.id == self.bot.user.id:
+                return
             msg = random.choice(self.vc_join_messages).format(mention=member.mention)
             try:
                 await after.channel.send(msg)
-            except (discord.Forbidden, AttributeError, discord.HTTPException):
+            except Exception:
                 pass
 
         # 2. Khi có người RỜI Voice
         elif before.channel is not None and after.channel is None:
+            if member.id == self.bot.user.id:
+                return
             msg = random.choice(self.vc_leave_messages).format(mention=member.mention)
             try:
                 await before.channel.send(msg)
-            except (discord.Forbidden, AttributeError, discord.HTTPException):
+            except Exception:
                 pass
 
 

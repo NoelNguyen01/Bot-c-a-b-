@@ -41,6 +41,8 @@ class TrollBot(commands.Bot):
 
     def __init__(self) -> None:
         intents = discord.Intents.default()
+        # Bật members intent để nhận sự kiện thành viên vào/rời server và tự cấp role
+        intents.members = True
         
         super().__init__(
             command_prefix="!",
