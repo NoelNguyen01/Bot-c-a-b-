@@ -318,25 +318,25 @@ class TrollCog(commands.Cog):
             color=discord.Color.gold()
         )
 
-        if custom_rule:
-            embed.description = f"**📢 NỘI QUY RIÊNG CỦA SERVER:**\n{custom_rule}\n\n" + "—"*25 + "\n**⚖️ 10 ĐIỀU QUY ĐỊNH CHUNG:**"
-        else:
-            embed.description = "Chào mừng bạn đến với Server! Vui lòng đọc kỹ và tuân thủ các quy định dưới đây để giữ gìn môi trường vui chơi lành mạnh:"
-
         rules_list = [
-            "**Điều 1 (Tôn trọng):** Tôn trọng tất cả các thành viên trong server, giữ hòa khí vui vẻ và hòa đồng.",
-            "**Điều 2 (Văn hóa ứng xử):** Sử dụng ngôn từ văn minh; nghiêm cấm xúc phạm, lăng mạ, bôi nhọ danh dự người khác.",
-            "**Điều 3 (Chống Spam):** Không spam tin nhắn, spam tag vô lý hoặc cố tình phá rối khi người khác đang nói chuyện / chơi game.",
-            "**Điều 4 (Nội dung an toàn):** Nghiêm cấm chia sẻ nội dung 18+, hình ảnh phản cảm, link độc hại, virus hoặc lừa đảo.",
-            "**Điều 5 (Sử dụng Bot):** Dùng các lệnh Bot giải trí đúng kênh quy định (như `#đồ-chơi`, `#chat`).",
-            "**Điều 6 (Vui chơi có chừng mực):** Trêu đùa vui vẻ, lành mạnh và biết điểm dừng đúng lúc.",
-            "**Điều 7 (Trật tự Voice):** Giữ trật tự chung trong phòng thoại, không bật âm thanh quá lớn gây chói tai ảnh hưởng người khác.",
-            "**Điều 8 (Tính năng ẩn danh):** Không lạm dụng tính năng nặc danh để vu khống hoặc bịa đặt sai sự thật.",
-            "**Điều 9 (Ban Quản Trị):** Tuân thủ sự nhắc nhở và quyết định xử lý của Admin / Ban quản trị server.",
-            "**Điều 10 (Thư giãn):** Chúc tất cả anh em có những phút giây giao lưu, xả stress và chơi game thật vui vẻ!"
+            "**1. Tôn trọng:** Giữ hòa khí vui vẻ, tôn trọng mọi thành viên.",
+            "**2. Văn hóa ứng xử:** Không xúc phạm, lăng mạ hay bôi nhọ người khác.",
+            "**3. Chống Spam:** Không spam chat, spam tag vô lý hoặc phá phòng voice.",
+            "**4. Nội dung an toàn:** Nghiêm cấm chia sẻ nội dung 18+, link độc hại, virus.",
+            "**5. Dùng Bot đúng kênh:** Sử dụng các lệnh Bot đúng kênh quy định.",
+            "**6. Đùa có chừng mực:** Trêu đùa vui vẻ, lành mạnh và biết điểm dừng.",
+            "**7. Trật tự Voice:** Giữ trật tự phòng thoại, không bật âm thanh quá lớn.",
+            "**8. Tính năng ẩn danh:** Không dùng nặc danh để vu khống bịa đặt.",
+            "**9. Ban Quản Trị:** Tuân thủ sự nhắc nhở của Admin / Ban quản trị.",
+            "**10. Thư giãn:** Chúc anh em giao lưu, xả stress và chơi game vui vẻ!"
         ]
 
-        embed.add_field(name="⚖️ Chi tiết 10 điều quy định", value="\n\n".join(rules_list), inline=False)
+        desc_content = ""
+        if custom_rule:
+            desc_content += f"**📢 NỘI QUY RIÊNG:**\n{custom_rule}\n\n—"*15 + "\n"
+        
+        desc_content += "**⚖️ 10 ĐIỀU QUY ĐỊNH CHUNG:**\n\n" + "\n\n".join(rules_list)
+        embed.description = desc_content
         embed.set_footer(text="Ban Quản Trị có thể dùng /set_rule để bổ sung quy định riêng!")
         embed.set_thumbnail(url=SCROLL_ICON_URL)
 

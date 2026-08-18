@@ -41,8 +41,8 @@ class TrollBot(commands.Bot):
 
     def __init__(self) -> None:
         intents = discord.Intents.default()
-        # Bật members intent để nhận sự kiện thành viên vào/rời server và tự cấp role
         intents.members = True
+        intents.message_content = True
         
         super().__init__(
             command_prefix="!",
@@ -112,15 +112,14 @@ class TrollBot(commands.Bot):
         except Exception:
             pass
 
-        # Xóa các lệnh guild cũ nếu có và sync Global duy nhất
+        # Đồng bộ danh sách lệnh lên toàn cầu và từng Guild để cập nhật NGAY LẬP TỨC
         for guild in self.guilds:
             try:
-                self.tree.clear_commands(guild=guild)
+                self.tree.copy_global_to(guild=guild)
                 await self.tree.sync(guild=guild)
             except Exception as e:
-                logger.error(f"Lỗi clear guild {guild.name}: {e}")
+                logger.error(f"Lỗi sync guild {guild.name}: {e}")
 
-        # Đồng bộ danh sách lệnh chuẩn
         synced = await self.tree.sync()
         logger.info(f"⚡ Đã đồng bộ sạch sẽ {len(synced)} lệnh duy nhất!")
 
