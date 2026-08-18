@@ -10,21 +10,24 @@ import asyncio
 from typing import Optional
 
 DEBTS_FILE = "data/debts.json"
+CONFIG_FILE = "data/config.json"
 CLOWN_ICON_URL = "https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/1f921.png"
+SCROLL_ICON_URL = "https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/1f4dc.png"
 
-def load_debts():
-    if not os.path.exists(DEBTS_FILE):
+def load_json(filepath):
+    if not os.path.exists(filepath):
         return {}
-    with open(DEBTS_FILE, "r", encoding="utf-8") as f:
+    with open(filepath, "r", encoding="utf-8") as f:
         try:
             return json.load(f)
         except json.JSONDecodeError:
             return {}
 
-def save_debts(data):
-    os.makedirs(os.path.dirname(DEBTS_FILE), exist_ok=True)
-    with open(DEBTS_FILE, "w", encoding="utf-8") as f:
+def save_json(filepath, data):
+    os.makedirs(os.path.dirname(filepath), exist_ok=True)
+    with open(filepath, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=4, ensure_ascii=False)
+
 
 class DebtView(discord.ui.View):
     def __init__(self, debtor: discord.Member, creditor: discord.Member, amount: int, reason: str, debt_id: str):
@@ -36,13 +39,13 @@ class DebtView(discord.ui.View):
         self.debt_id = debt_id
 
     def remove_debt(self):
-        debts = load_debts()
+        debts = load_json(DEBTS_FILE)
         debtor_id = str(self.debtor.id)
         if debtor_id in debts:
             debts[debtor_id] = [d for d in debts[debtor_id] if d.get("id") != self.debt_id]
             if not debts[debtor_id]:
                 del debts[debtor_id]
-            save_debts(debts)
+            save_json(DEBTS_FILE, debts)
 
     @discord.ui.button(label="🟢 Tao chuyển khoản rồi", style=discord.ButtonStyle.success)
     async def paid_button(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -115,13 +118,13 @@ class TrollCog(commands.Cog):
         
         embed.add_field(
             name="💸 1. Máy Đòi Nợ Mặt Dày",
-            value="• `/doino @user <số_tiền> <lý_do>`: Ghi sổ nợ, tag con nợ kèm 3 nút bấm tương tác.\n• `/so_no`: Xem bảng phong thần top nợ dai nhất server.",
+            value="• `/doino @user <số_tiền> <lý_do>`: Ghi sổ nợ, tag con nợ kèm 3 nút tương tác.\n• `/so_no`: Xem bảng phong thần top nợ dai nhất server.",
             inline=False
         )
         
         embed.add_field(
             name="🛞 2. Quét Độ Lốp Dự Phòng",
-            value="• `/checklop @user`: Đo độ simp / lụy tình từ 0% đến 100% kèm chẩn đoán độ lốp xe.",
+            value="• `/checklop @user`: Đo độ simp / lụy tình từ 0% đến 100% kèm chẩn đoán.",
             inline=False
         )
 
@@ -139,18 +142,24 @@ class TrollCog(commands.Cog):
 
         embed.add_field(
             name="📢 5. Réo Tên Vong Hồn (Spam Tag)",
-            value="• `/spamtag @user <nội_dung> <số_lần>`: Spam tag réo tên liên tục (tối đa 10 lần, cooldown 45s).",
+            value="• `/spamtag @user <nội_dung> <số_lần>`: Spam tag réo tên liên tục (max 10 lần, cooldown 45s).",
             inline=False
         )
 
         embed.add_field(
-            name="🔊 6. Chị Google Đọc Hộ Trong Voice",
-            value="• `/join`: Mời chị Google vào phòng voice bạn đang ngồi.\n• `/noi <nội_dung>`: Chị Google đọc văn bản bằng tiếng Việt cực truyền cảm.\n• `/leave`: Cho chị Google rời phòng.",
+            name="📜 6. Luật & Nội Quy Server",
+            value="• `/rule`: Xem 10 điều luật sinh tồn bất thành văn của Server.\n• `/set_rule <nội_dung>`: Admin cài đặt nội quy riêng cho lớp.",
             inline=False
         )
 
         embed.add_field(
-            name="⚙️ 7. Cài Đặt Kênh Chào Mừng",
+            name="🔊 7. Chị Google Đọc Hộ Trong Voice",
+            value="• `/join`: Mời chị Google vào phòng voice bạn đang ngồi.\n• `/noi <nội_dung>`: Chị Google đọc to văn bản bằng tiếng Việt.\n• `/leave`: Cho chị Google rời phòng.",
+            inline=False
+        )
+
+        embed.add_field(
+            name="⚙️ 8. Cài Đặt Kênh Chào Mừng",
             value="• `/set_welcome #channel`: Chỉ định kênh gửi thông báo chào đón/tiễn thành viên.",
             inline=False
         )
@@ -160,6 +169,52 @@ class TrollCog(commands.Cog):
         
         await interaction.response.send_message(embed=embed)
 
+    @app_commands.command(name="rule", description="Xem nội quy & 10 điều luật bất thành văn của Server")
+    async def rule(self, interaction: discord.Interaction):
+        config = load_json(CONFIG_FILE)
+        guild_id = str(interaction.guild_id)
+        custom_rule = config.get(guild_id, {}).get("custom_rule")
+
+        embed = discord.Embed(
+            title="📜 10 ĐIỀU LUẬT BẤT THÀNH VĂN CỦA CHUỒNG HỀ 🤡",
+            color=discord.Color.gold()
+        )
+
+        if custom_rule:
+            embed.description = f"**📢 NỘI QUY RIÊNG CỦA SERVER:**\n{custom_rule}\n\n" + "—"*25 + "\n**⚖️ 10 ĐIỀU LUẬT CỐT LÕI:**"
+        else:
+            embed.description = "Bất kỳ ai bước chân vào Server đều phải tuân thủ nghiêm ngặt các điều khoản sau:"
+
+        rules_list = [
+            "**Điều 1:** Cấm làm lốp xe dự phòng quá 24h. Bị phát hiện sẽ bị phạt lệnh `/checklop` công khai.",
+            "**Điều 2:** Vay tiền không trả thì xác định ăn `/doino` cả ngày lẫn đêm đến khi nào trả mới thôi.",
+            "**Điều 3:** Cấm sủi Voice không lý do (đặc biệt là lý do 'đi ăn cơm' xong mất tích 3 ngày).",
+            "**Điều 4:** Phát ngôn ngáo ngơ, tự luyến tự giác nhận danh hiệu Joker 🃏.",
+            "**Điều 5:** Nghiêm cấm chụp màn hình mang đi mách cô giáo hoặc phụ huynh.",
+            "**Điều 6:** Tôn trọng chủ phòng Voice, không tranh mic rên rỉ giờ thi cử.",
+            "**Điều 7:** Ai bị tag 10 lần bằng `/spamtag` mà không rep sẽ bị coi là 'Đáy xã hội'.",
+            "**Điều 8:** Không dùng `/nemda` vu khống người vô tội (trừ khi thấy vui).",
+            "**Điều 9:** Lời nói không mất tiền mua, lựa lời mà chửi cho vừa lòng nhau.",
+            "**Điều 10:** Mọi quyết định của Admin là chân lý. Nếu Admin sai, xem lại Điều 1."
+        ]
+
+        embed.add_field(name="⚖️ Nội quy chi tiết", value="\n\n".join(rules_list), inline=False)
+        embed.set_footer(text="Admin có thể dùng /set_rule để thêm nội quy riêng!")
+        embed.set_thumbnail(url=SCROLL_ICON_URL)
+
+        await interaction.response.send_message(embed=embed)
+
+    @app_commands.command(name="set_rule", description="Cài đặt nội quy riêng của Server (Dành cho Admin)")
+    @app_commands.checks.has_permissions(administrator=True)
+    async def set_rule(self, interaction: discord.Interaction, noi_dung: str):
+        config = load_json(CONFIG_FILE)
+        guild_id = str(interaction.guild_id)
+        if guild_id not in config:
+            config[guild_id] = {}
+        config[guild_id]["custom_rule"] = noi_dung
+        save_json(CONFIG_FILE, config)
+        await interaction.response.send_message("✅ Đã cập nhật nội quy riêng cho Server thành công! Gõ `/rule` để xem.", ephemeral=True)
+
     @app_commands.command(name="doino", description="Đòi nợ một đứa nào đó")
     async def doino(self, interaction: discord.Interaction, con_no: discord.Member, so_tien: int, ly_do: str):
         if con_no.id == interaction.user.id:
@@ -167,7 +222,7 @@ class TrollCog(commands.Cog):
             return
 
         debt_id = str(time.time())
-        debts = load_debts()
+        debts = load_json(DEBTS_FILE)
         debtor_id = str(con_no.id)
         
         if debtor_id not in debts:
@@ -180,7 +235,7 @@ class TrollCog(commands.Cog):
             "reason": ly_do,
             "timestamp": time.time()
         })
-        save_debts(debts)
+        save_json(DEBTS_FILE, debts)
         
         embed = discord.Embed(
             title="⚠️ CẢNH BÁO NỢ NẦN ⚠️",
@@ -196,7 +251,7 @@ class TrollCog(commands.Cog):
 
     @app_commands.command(name="so_no", description="Xem bảng xếp hạng nợ nần")
     async def so_no(self, interaction: discord.Interaction):
-        debts = load_debts()
+        debts = load_json(DEBTS_FILE)
         if not debts:
             await interaction.response.send_message("Hiện tại giang hồ đang thái bình, không ai nợ ai.", ephemeral=True)
             return
