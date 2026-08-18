@@ -67,7 +67,7 @@ class Welcome(commands.Cog):
             except Exception:
                 pass
 
-        # Nếu chưa cài đặt, tự động tìm kênh có tên hello-baibai, chao-mung, welcome
+        # Tự động tìm kênh có tên hello-baibai, chao-mung, welcome
         if not channel:
             for c in guild.channels:
                 if any(name in c.name.lower() for name in ["hello-baibai", "hello", "chao-mung", "welcome", "thong-bao"]):
@@ -75,10 +75,28 @@ class Welcome(commands.Cog):
                         channel = c
                         break
 
-        # Fallback cuối cùng về kênh hệ thống
         if not channel:
             channel = guild.system_channel
         return channel
+
+    def get_auto_role(self, guild: discord.Guild):
+        guild_id = str(guild.id)
+        config = load_config()
+        role_id = config.get(guild_id, {}).get("autorole_id") or self.cache.get(guild_id, {}).get("autorole_id")
+        
+        if role_id:
+            try:
+                role = guild.get_role(int(role_id))
+                if role:
+                    return role
+            except Exception:
+                pass
+
+        # Tự động tìm vai trò có tên 'No role', 'Member', 'Thành Viên'
+        for r in guild.roles:
+            if any(name in r.name.lower() for name in ["no role", "norole", "thành viên", "member"]):
+                return r
+        return None
 
     @app_commands.command(name="set_welcome", description="Cài đặt kênh gửi tin nhắn chào mừng/tiễn thành viên")
     async def set_welcome(
@@ -112,7 +130,7 @@ class Welcome(commands.Cog):
 
         if role >= interaction.guild.me.top_role:
             await interaction.response.send_message(
-                f"❌ Vai trò {role.mention} cao hơn hoặc bằng vai trò của Bot!\n👉 **Cách sửa:** Vào *Cài đặt Server -> Vai trò*, kéo vai trò của Bot lên **trên** vai trò {role.name} nhé.",
+                f"❌ Vai trò {role.mention} cao hơn hoặc bằng vai trò của Bot!\n👉 **Cách sửa:** Vào *Cài đặt Server -> Vai trò*, kéo vai trò **culi của Ngựa** lên **trên** vai trò **{role.name}** nhé.",
                 ephemeral=True
             )
             return
@@ -148,17 +166,17 @@ class Welcome(commands.Cog):
     @commands.Cog.listener()
     async def on_member_join(self, member):
         logger.info(f"Thành viên mới vào server: {member.name} (ID: {member.id})")
-        config = load_config()
-        guild_id = str(member.guild.id)
         
-        # 1. Tự động cấp Role cho thành viên mới nếu có cài đặt
-        autorole_id = config.get(guild_id, {}).get("autorole_id") or self.cache.get(guild_id, {}).get("autorole_id")
-        if autorole_id:
+        # 1. Tự động cấp Role cho thành viên mới
+        role = self.get_auto_role(member.guild)
+        if role:
             try:
-                role = member.guild.get_role(int(autorole_id))
-                if role:
+                # Kiểm tra quyền thứ bậc role trước khi gán
+                if role < member.guild.me.top_role:
                     await member.add_roles(role, reason="Auto-Role khi gia nhập server")
-                    logger.info(f"Đã cấp role {role.name} cho {member.name}")
+                    logger.info(f"Đã cấp thành công role {role.name} cho {member.name}")
+                else:
+                    logger.warning(f"Bot không thể cấp role {role.name} vì vai trò của Bot nằm dưới role này!")
             except Exception as e:
                 logger.error(f"Lỗi cấp Auto-Role: {e}")
 
@@ -186,7 +204,6 @@ class Welcome(commands.Cog):
 
     @commands.Cog.listener()
     async def on_voice_state_update(self, member, before, after):
-        # 1. Khi có người VÀO Voice
         if before.channel is None and after.channel is not None:
             if member.id == self.bot.user.id:
                 return
@@ -196,7 +213,6 @@ class Welcome(commands.Cog):
             except Exception:
                 pass
 
-        # 2. Khi có người RỜI Voice
         elif before.channel is not None and after.channel is None:
             if member.id == self.bot.user.id:
                 return
