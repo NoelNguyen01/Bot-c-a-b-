@@ -10,9 +10,18 @@ import logging
 
 logger = logging.getLogger("VoiceTTS")
 
+def get_ffmpeg_binary():
+    try:
+        import imageio_ffmpeg
+        return imageio_ffmpeg.get_ffmpeg_exe()
+    except Exception:
+        return "ffmpeg"
+
+
 class VoiceTTS(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
+        self.ffmpeg_bin = get_ffmpeg_binary()
 
     def get_user_voice_channel(self, interaction: discord.Interaction):
         # 1. Kiểm tra interaction.user.voice
@@ -33,25 +42,29 @@ class VoiceTTS(commands.Cog):
 
     @app_commands.command(name="join", description="Gọi chị Google vào phòng thoại")
     async def join(self, interaction: discord.Interaction):
+        await interaction.response.defer()
         channel = self.get_user_voice_channel(interaction)
         if not channel:
-            await interaction.response.send_message("Mày phải vào một phòng thoại trước chứ!", ephemeral=True)
+            await interaction.followup.send("Mày phải vào một phòng thoại trước chứ!", ephemeral=True)
             return
-
-        await interaction.response.defer()
 
         try:
             vc = interaction.guild.voice_client
-            if vc:
+            if vc and vc.is_connected():
                 if vc.channel.id != channel.id:
                     await vc.move_to(channel)
                 await interaction.followup.send(f"🔊 Chị Google đã chuyển sang phòng **{channel.name}**, gõ lệnh `/noi` để chị đọc hộ nhé!")
             else:
-                await channel.connect(self_deaf=True)
+                if vc:
+                    try:
+                        await vc.disconnect(force=True)
+                    except Exception:
+                        pass
+                await channel.connect(self_deaf=True, timeout=30.0)
                 await interaction.followup.send(f"🔊 Chị Google đã vào phòng **{channel.name}**, đứa nào câm mic thì gõ `/noi` chị đọc hộ!")
         except Exception as e:
             logger.error(f"Lỗi join voice: {e}", exc_info=True)
-            await interaction.followup.send(f"❌ Không thể vào phòng thoại: {e}\n👉 *Mẹo: Kiểm tra xem Bot đã có quyền 'Kết nối' (Connect) và 'Nói' (Speak) trong phòng {channel.name} chưa nhé!*")
+            await interaction.followup.send(f"❌ Không thể vào phòng thoại: {e}")
 
     @app_commands.command(name="leave", description="Đuổi chị Google đi")
     async def leave(self, interaction: discord.Interaction):
@@ -68,26 +81,30 @@ class VoiceTTS(commands.Cog):
 
     @app_commands.command(name="noi", description="Nhờ chị Google đọc nội dung")
     async def noi(self, interaction: discord.Interaction, noi_dung: str):
+        await interaction.response.defer()
         channel = self.get_user_voice_channel(interaction)
         vc = interaction.guild.voice_client
 
         # Nếu bot chưa vào voice thì tự động kết nối vào phòng của người dùng
         if not vc or not vc.is_connected():
             if not channel:
-                await interaction.response.send_message("Mày phải vào một phòng thoại trước thì chị mới biết vào đâu để đọc chứ!", ephemeral=True)
+                await interaction.followup.send("Mày phải vào một phòng thoại trước thì chị mới biết vào đâu để đọc chứ!", ephemeral=True)
                 return
             try:
-                vc = await channel.connect(self_deaf=True)
+                if vc:
+                    try:
+                        await vc.disconnect(force=True)
+                    except Exception:
+                        pass
+                vc = await channel.connect(self_deaf=True, timeout=30.0)
             except Exception as e:
                 logger.error(f"Lỗi tự động kết nối voice: {e}", exc_info=True)
-                await interaction.response.send_message(f"❌ Không thể kết nối vào phòng thoại: {e}", ephemeral=True)
+                await interaction.followup.send(f"❌ Không thể kết nối vào phòng thoại: {e}")
                 return
 
         if vc.is_playing():
-            await interaction.response.send_message("Từ từ con lợn ơi, chị đang nói dở!", ephemeral=True)
+            await interaction.followup.send("Từ từ con lợn ơi, chị đang nói dở!", ephemeral=True)
             return
-
-        await interaction.response.defer()
 
         file_name = f"/tmp/tts_{uuid.uuid4().hex}.mp3"
         try:
@@ -103,7 +120,7 @@ class VoiceTTS(commands.Cog):
                     except Exception:
                         pass
 
-            source = discord.FFmpegPCMAudio(file_name)
+            source = discord.FFmpegPCMAudio(file_name, executable=self.ffmpeg_bin)
             vc.play(source, after=after_playing)
             await interaction.followup.send(f"🗣️ **Chị Google đã đọc:** {noi_dung}")
         except Exception as e:
