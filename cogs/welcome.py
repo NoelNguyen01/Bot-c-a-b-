@@ -56,7 +56,7 @@ class Welcome(commands.Cog):
     async def set_welcome(
         self, 
         interaction: discord.Interaction, 
-        channel: Union[discord.TextChannel, discord.NewsChannel, discord.VoiceChannel, discord.Thread]
+        channel: discord.abc.GuildChannel
     ):
         user_perms = interaction.user.guild_permissions
         if not (user_perms.administrator or user_perms.manage_guild or user_perms.manage_channels):
