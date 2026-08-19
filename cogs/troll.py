@@ -20,7 +20,6 @@ CLOWN_ICON_URL = "https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x7
 SCROLL_ICON_URL = "https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/1f4dc.png"
 SECRET_ICON_URL = "https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/1f977.png"
 CROWN_ICON_URL = "https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/1f451.png"
-SPARKLES_GIF = "https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/2728.png"
 
 MEMORY_CONFESSION_CHANNELS = {}
 
@@ -296,22 +295,16 @@ class TrollCog(commands.Cog):
 
     @app_commands.command(name="culi", description="✨ Lệnh ẩn: Xem thông số sức mạnh vô cực của Culi của Ngựa")
     async def culi_slash(self, interaction: discord.Interaction):
-        await self.whoami_slash(interaction)
+        embed = self.build_fancy_intro_embed(self.bot.user)
+        view = BotIntroView()
+        await interaction.response.send_message(embed=embed, view=view)
 
-    @commands.command(name="intro")
+    @commands.command(name="intro", aliases=["whoami", "culi", "about"])
     async def cmd_intro(self, ctx):
-        """!intro -> Lệnh nhanh mở hồ sơ siêu màu mè"""
+        """!intro / !culi / !whoami -> Lệnh nhanh mở hồ sơ siêu màu mè"""
         embed = self.build_fancy_intro_embed(self.bot.user)
         view = BotIntroView()
         await ctx.send(embed=embed, view=view)
-
-    @commands.command(name="whoami")
-    async def cmd_whoami(self, ctx):
-        await self.cmd_intro(ctx)
-
-    @commands.command(name="culi")
-    async def cmd_culi(self, ctx):
-        await self.cmd_intro(ctx)
 
     # ================= CÁC LỆNH KHÁC =================
     @app_commands.command(name="hdsd", description="Xem cẩm nang hướng dẫn sử dụng toàn bộ lệnh của Bot")
