@@ -2,8 +2,9 @@
 import discord
 from discord.ext import commands
 from discord import app_commands
-import google.generativeai as genai
+import aiohttp
 import os
+import json
 import logging
 import asyncio
 from typing import Optional
@@ -19,6 +20,14 @@ Tính cách và phong cách trả lời của bạn:
 4. Làm thơ / Cà khịa: Khi được yêu cầu làm thơ hoặc troll ai đó, hãy làm những bài thơ lục bát hoặc văn mẫu cà khịa siêu cay nhưng mang tính giải trí lành mạnh.
 5. Ngắn gọn & Súc tích: Trả lời đúng trọng tâm, định dạng markdown đẹp mắt (in đậm, danh sách gạch đầu dòng, code block nếu là lập trình).
 """
+
+FALLBACK_MODELS = [
+    "gemini-3.7-flash",
+    "gemini-flash-latest",
+    "gemini-3.5-flash",
+    "gemini-3.1-flash-lite",
+    "gemini-1.5-flash"
+]
 
 def split_text(text: str, max_length: int = 1900) -> list[str]:
     """Chia nhỏ văn bản nếu vượt quá giới hạn 2000 ký tự của Discord"""
@@ -42,87 +51,64 @@ def split_text(text: str, max_length: int = 1900) -> list[str]:
 class AIChatCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.api_key = os.getenv("GEMINI_API_KEY")
-        self.model = None
-        self.model_name = None
-        self.chat_sessions = {}
-        self.init_gemini()
+        # Lưu lịch sử chat theo kênh: { channel_id: [ {"role": "user"/"model", "parts": [{"text": ...}]} ] }
+        self.channel_history = {}
 
-    def init_gemini(self):
-        self.api_key = os.getenv("GEMINI_API_KEY")
-        if not self.api_key:
-            logger.warning("Chưa cấu hình GEMINI_API_KEY!")
-            return
+    async def call_gemini_api(self, prompt: str, user_name: str, channel_id: int) -> str:
+        api_key = os.getenv("GEMINI_API_KEY")
+        if not api_key:
+            return "❌ Chưa cấu hình `GEMINI_API_KEY`! Vui lòng vào Render -> Environment để thêm API Key nhé."
 
-        try:
-            genai.configure(api_key=self.api_key)
-            
-            # Tự động quét và chọn Model phù hợp nhất của tài khoản
-            candidate_models = ["gemini-1.5-flash", "gemini-1.5-flash-latest", "gemini-2.0-flash", "gemini-1.5-pro", "gemini-pro"]
-            selected_model = None
-            
+        # Quản lý lịch sử chat của kênh (giữ 8 tin nhắn gần nhất)
+        if channel_id not in self.channel_history:
+            self.channel_history[channel_id] = []
+
+        history = self.channel_history[channel_id]
+        user_message = f"[{user_name}]: {prompt}"
+        history.append({"role": "user", "parts": [{"text": user_message}]})
+
+        # Giữ tối đa 10 tin nhắn gần nhất
+        if len(history) > 10:
+            history = history[-10:]
+            self.channel_history[channel_id] = history
+
+        payload = {
+            "systemInstruction": {
+                "parts": [{"text": SYSTEM_INSTRUCTION}]
+            },
+            "contents": history
+        }
+
+        # Thử lần lượt các model tốt nhất
+        last_error = None
+        for model in FALLBACK_MODELS:
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
             try:
-                available_models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
-                for cand in candidate_models:
-                    for avail in available_models:
-                        if cand in avail:
-                            selected_model = avail
-                            break
-                    if selected_model:
-                        break
-                if not selected_model and available_models:
-                    selected_model = available_models[0]
+                async with aiohttp.ClientSession() as session:
+                    async with session.post(url, json=payload, timeout=aiohttp.ClientTimeout(total=25)) as response:
+                        if response.status == 200:
+                            data = await response.json()
+                            candidates = data.get("candidates", [])
+                            if candidates:
+                                parts = candidates[0].get("content", {}).get("parts", [])
+                                if parts:
+                                    reply_text = parts[0].get("text", "").strip()
+                                    if reply_text:
+                                        # Lưu câu trả lời của model vào lịch sử
+                                        history.append({"role": "model", "parts": [{"text": reply_text}]})
+                                        return reply_text
+                        else:
+                            error_data = await response.text()
+                            logger.warning(f"Model {model} trả về mã {response.status}: {error_data[:200]}")
+                            last_error = f"HTTP {response.status}"
             except Exception as e:
-                logger.warning(f"Không thể list models: {e}, dùng mặc định gemini-1.5-flash")
-                selected_model = "gemini-1.5-flash"
+                logger.error(f"Lỗi khi kết nối model {model}: {e}")
+                last_error = str(e)
 
-            self.model_name = selected_model or "gemini-1.5-flash"
-            try:
-                self.model = genai.GenerativeModel(
-                    model_name=self.model_name,
-                    system_instruction=SYSTEM_INSTRUCTION
-                )
-            except Exception:
-                # Fallback nếu model cũ không nhận system_instruction
-                self.model = genai.GenerativeModel(model_name=self.model_name)
-
-            logger.info(f"🤖 Đã kích hoạt Gemini AI thành công với Model: {self.model_name}")
-        except Exception as e:
-            logger.error(f"Lỗi khởi tạo Gemini AI: {e}", exc_info=True)
-
-    def get_chat_session(self, channel_id: int):
-        if self.model is None:
-            self.init_gemini()
-        if self.model is None:
-            return None
-
-        if channel_id not in self.chat_sessions:
-            self.chat_sessions[channel_id] = self.model.start_chat(history=[])
-        return self.chat_sessions[channel_id]
-
-    async def generate_ai_response(self, prompt: str, user_name: str, channel_id: int) -> str:
-        if self.model is None:
-            self.init_gemini()
-        if self.model is None:
-            return "❌ Chưa cấu hình `GEMINI_API_KEY`! Vui lòng thêm API Key trên Render nhé."
-
-        formatted_prompt = f"[{user_name}]: {prompt}"
-        try:
-            chat = self.get_chat_session(channel_id)
-            response = await asyncio.to_thread(chat.send_message, formatted_prompt)
-            return response.text.strip()
-        except Exception as e:
-            logger.error(f"Lỗi gọi Gemini API: {e}")
-            if channel_id in self.chat_sessions:
-                del self.chat_sessions[channel_id]
-            err_str = str(e)
-            if "404" in err_str or "API key not valid" in err_str:
-                return (
-                    "⚠️ **Mã API Key của bạn chưa đúng định dạng của Google AI Studio!**\n"
-                    "👉 Mã API Key chuẩn của Google thường bắt đầu bằng chữ `AIzaSy...`\n"
-                    "👉 Bạn hãy vào: https://aistudio.google.com/app/apikey bấm **Create API key** rồi dán lại vào Render nhé!"
-                )
-            return f"😅 Não tao vừa bị lag một tí: `{err_str}`. Mày hỏi lại câu khác xem nào!"
+        # Nếu lỗi toàn bộ, xóa bớt lịch sử
+        if channel_id in self.channel_history:
+            del self.channel_history[channel_id]
+        return f"😅 Não tao vừa bị đơ một tí ({last_error}). Mày hỏi lại câu khác xem nào! 🤡"
 
     # ================= LẮNG NGHE TIN NHẮN @BOT HOẶC REPLY =================
     @commands.Cog.listener()
@@ -130,6 +116,7 @@ class AIChatCog(commands.Cog):
         if message.author.bot or not message.guild:
             return
 
+        # Bỏ qua nếu là lệnh bắt đầu bằng !
         if message.content.startswith(("!", "/", "$")):
             return
 
@@ -151,7 +138,7 @@ class AIChatCog(commands.Cog):
                 return
 
             async with message.channel.typing():
-                reply_text = await self.generate_ai_response(clean_content, message.author.display_name, message.channel.id)
+                reply_text = await self.call_gemini_api(clean_content, message.author.display_name, message.channel.id)
                 chunks = split_text(reply_text)
                 
                 for i, chunk in enumerate(chunks):
@@ -165,7 +152,7 @@ class AIChatCog(commands.Cog):
     async def ai_command(self, interaction: discord.Interaction, cau_hoi: str):
         await interaction.response.defer()
         
-        reply_text = await self.generate_ai_response(cau_hoi, interaction.user.display_name, interaction.channel.id)
+        reply_text = await self.call_gemini_api(cau_hoi, interaction.user.display_name, interaction.channel.id)
         chunks = split_text(reply_text)
 
         for i, chunk in enumerate(chunks):
