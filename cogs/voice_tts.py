@@ -4,371 +4,371 @@ from discord.ext import commands
 from discord import app_commands
 import edge_tts
 import asyncio
+import tempfile
 import os
-import uuid
 import re
 import logging
-from typing import Optional
+import imageio_ffmpeg
 
 logger = logging.getLogger("VoiceTTS")
 
-def get_ffmpeg_binary():
-    try:
-        import imageio_ffmpeg
-        return imageio_ffmpeg.get_ffmpeg_exe()
-    except Exception:
-        return "ffmpeg"
+# BỘ TỪ ĐIỂN DỊCH VIẾT TẮT, TEENCODE VÀ NÓI LÁI TỪ TỤC CHỬI THỀ (120+ TỪ)
+VIETNAMESE_ABBREVIATIONS = [
+    # 1. Nói lái từ tục & chửi thề (dài khớp trước để tránh nuốt từ)
+    (r'\bđcmm\b', 'đậu cả nhà mày'),
+    (r'\bdcmm\b', 'đậu cả nhà mày'),
+    (r'\bclgt\b', 'cái lề gì thốn'),
+    (r'\bvcl\b', 'vãi cả lúa'),
+    (r'\bvkl\b', 'vãi cả lúa'),
+    (r'\bvch\b', 'vãi chưởng'),
+    (r'\bvcc\b', 'vãi cà chua'),
+    (r'\bvcb\b', 'vãi cả bưởi'),
+    (r'\bcmnr\b', 'chuẩn mẹ nó rồi'),
+    (r'\bcmn\b', 'chuẩn mẹ nó'),
+    (r'\bdcm\b', 'đậu cả mâm'),
+    (r'\bđcm\b', 'đậu cả mâm'),
+    (r'\bdmm\b', 'đậu mè mày'),
+    (r'\bđmm\b', 'đậu mè mày'),
+    (r'\bdm\b', 'đậu má'),
+    (r'\bđm\b', 'đậu má'),
+    (r'\bđịt mẹ mày\b', 'đậu má mày'),
+    (r'\bdit me may\b', 'đậu má mày'),
+    (r'\bđịt mẹ\b', 'đậu má'),
+    (r'\bdit me\b', 'đậu má'),
+    (r'\bvl\b', 'vãi lúa'),
+    (r'\bcl\b', 'cái lề'),
+    (r'\bcc\b', 'cục cứt'),
+    (r'\bloz\b', 'lầu'),
+    (r'\blon\b', 'lầu'),
+    (r'\blồn\b', 'lầu'),
+    (r'\bbuoi\b', 'bưởi'),
+    (r'\bbuồi\b', 'bưởi'),
+    (r'\bcặc\b', 'củ cải'),
+    (r'\bcac\b', 'củ cải'),
+    (r'\bđịt\b', 'đậu'),
+    (r'\bdit\b', 'đậu'),
+    (r'\bchó chết\b', 'chó cắn'),
+    (r'\bóc chó\b', 'óc quả nho'),
+    (r'\boc cho\b', 'óc quả nho'),
 
+    # 2. Học tập & trường lớp
+    (r'\bbtvn\b', 'bài tập về nhà'),
+    (r'\bktra\b', 'kiểm tra'),
+    (r'\bkt\b', 'kiểm tra'),
+    (r'\btkb\b', 'thời khóa biểu'),
+    (r'\bhw\b', 'bài tập về nhà'),
+    (r'\bhc\b', 'học'),
+    (r'\bgv\b', 'giáo viên'),
+    (r'\bhs\b', 'học sinh'),
+    (r'\bstt\b', 'số thứ tự'),
 
-# TỪ ĐIỂN DỊCH VIẾT TẮT / TEENCODE TIẾNG VIỆT TOÀN DIỆN
-VIETNAMESE_ABBREVIATIONS = {
-    # Đại từ & xưng hô
-    r'\bt\b': 'tao',
-    r'\bm\b': 'mày',
-    r'\bng\b': 'người',
-    r'\bngừi\b': 'người',
-    r'\bae\b': 'anh em',
-    r'\bmn\b': 'mọi người',
-    r'\bmk\b': 'mình',
-    r'\bmik\b': 'mình',
-    r'\bthg\b': 'thằng',
-    r'\btk\b': 'thằng',
-    r'\bthk\b': 'thằng',
-    r'\bad\b': 'admin',
-    r'\bgv\b': 'giáo viên',
-    r'\bhs\b': 'học sinh',
-    r'\bcr\b': 'crush',
+    # 3. Đại từ & xưng hô
+    (r'\bngừi\b', 'người'),
+    (r'\bnguoi\b', 'người'),
+    (r'\bng\b', 'người'),
+    (r'\bae\b', 'anh em'),
+    (r'\bmn\b', 'mọi người'),
+    (r'\bmik\b', 'mình'),
+    (r'\bmk\b', 'mình'),
+    (r'\btui\b', 'tôi'),
+    (r'\bthg\b', 'thằng'),
+    (r'\bthk\b', 'thằng'),
+    (r'\btk\b', 'thằng'),
+    (r'\bcr\b', 'crush'),
+    (r'\bny\b', 'người yêu'),
+    (r'\bex\b', 'người yêu cũ'),
+    (r'\bad\b', 'admin'),
+    (r'\bt\b', 'tao'),
+    (r'\bm\b', 'mày'),
 
-    # Các từ viết tắt phổ biến nhất
-    r'\bk\b': 'không',
-    r'\bko\b': 'không',
-    r'\bkh\b': 'không',
-    r'\bkhong\b': 'không',
-    r'\bk0\b': 'không',
-    r'\bdc\b': 'được',
-    r'\bđc\b': 'được',
-    r'\bđk\b': 'được',
-    r'\br\b': 'rồi',
-    r'\broi\b': 'rồi',
-    r'\bchx\b': 'chưa',
-    r'\bj\b': 'gì',
-    r'\bv\b': 'vậy',
-    r'\bvaayj\b': 'vậy',
-    r'\bs\b': 'sao',
-    r'\bcx\b': 'cũng',
-    r'\bvs\b': 'với',
-    r'\bnx\b': 'nữa',
-    r'\bth\b': 'thôi',
-    r'\bthui\b': 'thôi',
-    r'\blm\b': 'làm',
-    r'\bns\b': 'nói',
-    r'\bbt\b': 'biết',
-    r'\bh\b': 'giờ',
-    r'\bbh\b': 'bây giờ',
-    r'\btrg\b': 'trong',
-    r'\btrog\b': 'trong',
-    r'\bnt\b': 'nhắn tin',
-    r'\bdr\b': 'đúng rồi',
-    r'\bđr\b': 'đúng rồi',
-    r'\buk\b': 'ừ',
-    r'\buh\b': 'ừ',
-    r'\bum\b': 'ừ',
-    r'\bkp\b': 'không phải',
-    r'\bcb\b': 'chuẩn bị',
-    r'\bok\b': 'ô kê',
-    r'\boke\b': 'ô kê',
-    r'\boki\b': 'ô kê',
-    r'\bacc\b': 'tài khoản',
-    r'\bpass\b': 'mật khẩu',
-    r'\bstt\b': 'số thứ tự',
-    r'\bbtvn\b': 'bài tập về nhà',
-    r'\bhw\b': 'bài tập về nhà',
-    r'\btkb\b': 'thời khóa biểu',
+    # 4. Từ ngữ chat giao tiếp thường ngày
+    (r'\bkhong\b', 'không'),
+    (r'\bhong\b', 'không'),
+    (r'\bhổng\b', 'không'),
+    (r'\bhok\b', 'không'),
+    (r'\bko\b', 'không'),
+    (r'\bkh\b', 'không'),
+    (r'\bk0\b', 'không'),
+    (r'\bk\b', 'không'),
+    (r'\bdc\b', 'được'),
+    (r'\bđc\b', 'được'),
+    (r'\bđk\b', 'được'),
+    (r'\bdk\b', 'được'),
+    (r'\broi\b', 'rồi'),
+    (r'\brùi\b', 'rồi'),
+    (r'\br\b', 'rồi'),
+    (r'\bchx\b', 'chưa'),
+    (r'\bchua\b', 'chưa'),
+    (r'\bvaayj\b', 'vậy'),
+    (r'\bzay\b', 'vậy'),
+    (r'\bzậy\b', 'vậy'),
+    (r'\bv\b', 'vậy'),
+    (r'\bzi\b', 'gì'),
+    (r'\bzì\b', 'gì'),
+    (r'\bj\b', 'gì'),
+    (r'\bs\b', 'sao'),
+    (r'\bcug\b', 'cũng'),
+    (r'\bcx\b', 'cũng'),
+    (r'\bvoi\b', 'với'),
+    (r'\bvs\b', 'với'),
+    (r'\bnua\b', 'nữa'),
+    (r'\bnx\b', 'nữa'),
+    (r'\bthoai\b', 'thôi'),
+    (r'\bthui\b', 'thôi'),
+    (r'\bth\b', 'thôi'),
+    (r'\blms\b', 'làm sao'),
+    (r'\blm\b', 'làm'),
+    (r'\bnoi\b', 'nói'),
+    (r'\bns\b', 'nói'),
+    (r'\bbít\b', 'biết'),
+    (r'\bbit\b', 'biết'),
+    (r'\bbt\b', 'biết'),
+    (r'\bbjo\b', 'bây giờ'),
+    (r'\bbh\b', 'bây giờ'),
+    (r'\bh\b', 'giờ'),
+    (r'\btrog\b', 'trong'),
+    (r'\btrg\b', 'trong'),
+    (r'\bnt\b', 'nhắn tin'),
+    (r'\bib\b', 'nhắn tin'),
+    (r'\bdr\b', 'đúng rồi'),
+    (r'\bđr\b', 'đúng rồi'),
+    (r'\buhm\b', 'ừ'),
+    (r'\bum\b', 'ừ'),
+    (r'\buh\b', 'ừ'),
+    (r'\buk\b', 'ừ'),
+    (r'\bkpi\b', 'không phải'),
+    (r'\bkp\b', 'không phải'),
+    (r'\bcbi\b', 'chuẩn bị'),
+    (r'\bcb\b', 'chuẩn bị'),
+    (r'\bokela\b', 'ô kê'),
+    (r'\boki\b', 'ô kê'),
+    (r'\boke\b', 'ô kê'),
+    (r'\bok\b', 'ô kê'),
+    (r'\btks\b', 'cảm ơn'),
+    (r'\bthx\b', 'cảm ơn'),
+    (r'\bty\b', 'cảm ơn'),
+    (r'\bpls\b', 'làm ơn'),
+    (r'\bplz\b', 'làm ơn'),
+    (r'\bseen\b', 'đã xem'),
+    (r'\bonl\b', 'on lai'),
+    (r'\boff\b', 'ọp lai'),
 
-    # Mạng xã hội & công nghệ
-    r'\bsv\b': 'máy chủ',
-    r'\bvc\b': 'phòng thoại',
-    r'\bmic\b': 'míc',
-    r'\bcam\b': 'cam-mê-ra',
-    r'\bfb\b': 'phây búc',
-    r'\big\b': 'in-sta-gram',
-    r'\bytb\b': 'diu túp',
-    r'\btt\b': 'tóp tóp',
-    r'\btiktok\b': 'tóp tóp',
-    r'\bdis\b': 'đít cọt',
-    r'\bdiscord\b': 'đít cọt',
-
-    # Tiếng lóng & cảm thán vui
-    r'\bclgt\b': 'cái lề gì thốn',
-    r'\bvl\b': 'vãi lúa',
-    r'\bvcl\b': 'vãi cả lúa',
-    r'\bvkl\b': 'vãi cả lúa',
-    r'\bvch\b': 'vãi chưởng',
-    r'\bvcc\b': 'vãi cà chua',
-    r'\bdm\b': 'đờ mờ',
-    r'\bđm\b': 'đờ mờ',
-    r'\bdcm\b': 'đờ cờ mờ',
-    r'\bđcm\b': 'đờ cờ mờ',
-    r'\bdmm\b': 'đờ mờ mày',
-    r'\bđmm\b': 'đờ mờ mày',
-    r'\bcl\b': 'cờ lờ',
-    r'\bcc\b': 'cục cứt',
-    r'\bcmnr\b': 'chuẩn mẹ nó rồi',
-    r'\bvcb\b': 'vãi cả bưởi',
-}
-
+    # 5. Mạng xã hội, Discord & Game
+    (r'\bsv\b', 'máy chủ'),
+    (r'\bvc\b', 'phòng thoại'),
+    (r'\bmic\b', 'míc'),
+    (r'\bcam\b', 'cam-mê-ra'),
+    (r'\bacc\b', 'tài khoản'),
+    (r'\bpass\b', 'mật khẩu'),
+    (r'\bfb\b', 'phây búc'),
+    (r'\big\b', 'in-sta-gram'),
+    (r'\bytb\b', 'diu túp'),
+    (r'\btt\b', 'tóp tóp'),
+    (r'\btiktok\b', 'tóp tóp'),
+    (r'\bdis\b', 'đít cọt'),
+    (r'\bdiscord\b', 'đít cọt'),
+    (r'\bgame\b', 'gêm'),
+    (r'\brank\b', 'ranh'),
+    (r'\bnc\b', 'NoelCoin'),
+]
 
 def clean_text_for_tts(text: str) -> str:
-    """Lọc, dịch viết tắt và làm sạch văn bản trước khi đọc"""
-    # 1. Bỏ link URL
-    text = re.sub(r'https?://\S+|www\.\S+', 'gửi một đường link', text)
-    # 2. Bỏ mention
-    text = re.sub(r'<@!?\d+>', 'ai đó', text)
-    text = re.sub(r'<#\d+>', 'kênh', text)
-    text = re.sub(r'<@&\d+>', 'vai trò', text)
-
-    # 3. TỰ ĐỘNG DỊCH TỪ VIẾT TẮT / TEENCODE SANG TIẾNG VIỆT CHUẨN
-    for pattern, replacement in VIETNAMESE_ABBREVIATIONS.items():
+    """Loại bỏ link, emoji phức tạp, dịch teencode và nói lái từ tục"""
+    # 1. Bỏ URL link
+    text = re.sub(r'https?://\S+|www\.\S+', 'gửi một đường linh', text)
+    # 2. Bỏ Custom Discord Emoji <:name:id>
+    text = re.sub(r'<a?:[a-zA-Z0-9_]+:[0-9]+>', '', text)
+    # 3. Dịch viết tắt, teencode & nói lái từ tục
+    for pattern, replacement in VIETNAMESE_ABBREVIATIONS:
         text = re.sub(pattern, replacement, text, flags=re.IGNORECASE)
-
-    # 4. Giới hạn tối đa 200 ký tự chống spam
-    if len(text) > 200:
-        text = text[:200] + "... dài quá lười đọc!"
-    return text.strip()
+    # 4. Xóa khoảng trắng thừa
+    text = re.sub(r'\s+', ' ', text).strip()
+    return text
 
 
-class VoiceTTS(commands.Cog):
+class VoiceTTSCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.ffmpeg_bin = get_ffmpeg_binary()
-        self.queues = {}
-        self.worker_tasks = {}
-        self.autotts_enabled = {}
+        self.voice_name = "vi-VN-HoaiMyNeural"
+        self.auto_tts_enabled = True
+        self.tts_queue = asyncio.Queue()
+        self.is_playing = False
+        self.worker_task = None
 
-    def get_queue(self, guild_id: int) -> asyncio.Queue:
-        if guild_id not in self.queues:
-            self.queues[guild_id] = asyncio.Queue()
-        return self.queues[guild_id]
+    async def cog_load(self):
+        self.worker_task = asyncio.create_task(self.queue_worker())
+        logger.info("Auto-TTS Queue Worker đã khởi động thành công.")
 
-    def ensure_worker(self, guild: discord.Guild):
-        guild_id = guild.id
-        task = self.worker_tasks.get(guild_id)
-        if task is None or task.done():
-            self.worker_tasks[guild_id] = asyncio.create_task(self.queue_worker(guild))
+    def cog_unload(self):
+        if self.worker_task:
+            self.worker_task.cancel()
 
-    async def queue_worker(self, guild: discord.Guild):
-        guild_id = guild.id
-        queue = self.get_queue(guild_id)
-
+    async def queue_worker(self):
         while True:
             try:
-                item = await queue.get()
-                text_to_read, original_channel = item
-
-                vc = guild.voice_client
-                if not vc or not vc.is_connected():
-                    queue.task_done()
-                    continue
-
-                file_name = f"/tmp/tts_{uuid.uuid4().hex}.mp3"
-                try:
-                    communicate = edge_tts.Communicate(text_to_read, "vi-VN-HoaiMyNeural")
-                    await communicate.save(file_name)
-
-                    while vc.is_playing() or vc.is_paused():
-                        await asyncio.sleep(0.2)
-
-                    source = discord.FFmpegPCMAudio(file_name, executable=self.ffmpeg_bin)
-                    vc.play(source)
-
-                    while vc.is_playing():
-                        await asyncio.sleep(0.2)
-
-                except Exception as e:
-                    logger.error(f"Lỗi khi phát âm thanh TTS: {e}")
-                finally:
-                    if os.path.exists(file_name):
-                        try:
-                            os.remove(file_name)
-                        except Exception:
-                            pass
-                    queue.task_done()
-
+                guild_id, text_to_speak, voice_client = await self.tts_queue.get()
+                if voice_client and voice_client.is_connected():
+                    await self._play_audio(voice_client, text_to_speak)
+                self.tts_queue.task_done()
             except asyncio.CancelledError:
                 break
             except Exception as e:
-                logger.error(f"Lỗi trong queue_worker: {e}")
+                logger.error(f"Lỗi trong TTS queue worker: {e}", exc_info=True)
                 await asyncio.sleep(0.5)
 
-    def get_user_voice_channel(self, user: discord.Member, guild: discord.Guild):
-        if hasattr(user, "voice") and user.voice and user.voice.channel:
-            return user.voice.channel
-        for vc in guild.voice_channels:
-            if user in vc.members:
-                return vc
-        return None
+    async def _play_audio(self, voice_client: discord.VoiceClient, text: str):
+        temp_file = tempfile.NamedTemporaryFile(suffix=".mp3", delete=False)
+        temp_path = temp_file.name
+        temp_file.close()
 
+        try:
+            communicate = edge_tts.Communicate(text, self.voice_name)
+            await communicate.save(temp_path)
+
+            ffmpeg_path = imageio_ffmpeg.get_ffmpeg_exe()
+            
+            while voice_client.is_playing():
+                await asyncio.sleep(0.3)
+
+            play_done_event = asyncio.Event()
+
+            def after_playing(error):
+                if error:
+                    logger.error(f"TTS Playback error: {error}")
+                if os.path.exists(temp_path):
+                    try:
+                        os.remove(temp_path)
+                    except Exception:
+                        pass
+                self.bot.loop.call_soon_threadsafe(play_done_event.set)
+
+            source = discord.FFmpegPCMAudio(temp_path, executable=ffmpeg_path)
+            voice_client.play(source, after=after_playing)
+
+            await play_done_event.wait()
+        except Exception as e:
+            logger.error(f"Lỗi khi phát âm thanh TTS: {e}", exc_info=True)
+            if os.path.exists(temp_path):
+                try:
+                    os.remove(temp_path)
+                except Exception:
+                    pass
+
+    # ================= LẮNG NGHE CHAT ĐỂ TỰ ĐỘNG ĐỌC =================
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
         if message.author.bot or not message.guild:
             return
 
-        guild = message.guild
-        vc = guild.voice_client
-
-        if not vc or not vc.is_connected():
+        if not self.auto_tts_enabled:
             return
 
-        if not self.autotts_enabled.get(guild.id, True):
+        # Bỏ qua nếu là lệnh bot (! hoặc / hoặc $)
+        if message.content.startswith(("!", "/", "$")):
             return
 
-        content = message.content.strip()
-        if not content or content.startswith(("!", "/", "$", ".", "?")):
+        voice_client = message.guild.voice_client
+        if not voice_client or not voice_client.is_connected():
             return
 
-        is_in_vc_text = (isinstance(message.channel, discord.VoiceChannel) and message.channel.id == vc.channel.id)
-        user_in_same_vc = (hasattr(message.author, "voice") and message.author.voice and message.author.voice.channel and message.author.voice.channel.id == vc.channel.id)
+        bot_channel = voice_client.channel
+        is_in_vc_chat = (message.channel.id == bot_channel.id)
 
-        if is_in_vc_text or user_in_same_vc:
-            clean_msg = clean_text_for_tts(content)
-            if not clean_msg:
+        if not is_in_vc_chat and isinstance(message.author, discord.Member):
+            if message.author.voice and message.author.voice.channel == bot_channel:
+                is_in_vc_chat = True
+
+        if is_in_vc_chat:
+            raw_text = message.clean_content
+            clean_text = clean_text_for_tts(raw_text)
+            if not clean_text:
                 return
 
-            text_to_speak = f"{message.author.display_name} nói: {clean_msg}"
-            queue = self.get_queue(guild.id)
-            await queue.put((text_to_speak, message.channel))
-            self.ensure_worker(guild)
+            if len(clean_text) > 150:
+                clean_text = clean_text[:150] + " và còn nhiều chữ nữa..."
 
-    @app_commands.command(name="join", description="Mời chị Google vào phòng voice & Tự động đọc tin nhắn chat")
+            speech_text = f"{message.author.display_name} nói: {clean_text}"
+            await self.tts_queue.put((message.guild.id, speech_text, voice_client))
+
+    # ================= SLASH COMMANDS =================
+    @app_commands.command(name="join", description="Gọi chị Google vào kênh voice và tự động đọc chat")
     async def join(self, interaction: discord.Interaction):
-        await interaction.response.defer()
-        channel = self.get_user_voice_channel(interaction.user, interaction.guild)
-        if not channel:
-            await interaction.followup.send("❌ Bạn phải vào một phòng thoại trước chứ!", ephemeral=True)
-            return
-
-        try:
-            vc = interaction.guild.voice_client
-            if vc and vc.is_connected():
-                if vc.channel.id != channel.id:
-                    await vc.move_to(channel)
-            else:
-                if vc:
-                    try:
-                        await vc.disconnect(force=True)
-                    except Exception:
-                        pass
-                vc = await channel.connect(self_deaf=True, timeout=30.0)
-
-            self.autotts_enabled[interaction.guild_id] = True
-            self.ensure_worker(interaction.guild)
-
-            embed = discord.Embed(
-                title="🎙️ CHỊ GOOGLE ĐÃ VÀO PHÒNG & KÍCH HOẠT TỰ ĐỘNG ĐỌC! ✨",
-                description=(
-                    f"🔊 Đã kết nối vào phòng **{channel.name}**.\n\n"
-                    "💡 **TÍNH NĂNG TỰ ĐỘNG ĐỌC (AUTO-TTS):**\n"
-                    "👉 Anh em câm mic chỉ cần **nhắn tin chữ bình thường** vào kênh chat phòng Voice này, "
-                    "chị Google sẽ **tự động phát giọng đọc vào mic** mà không cần gõ lệnh gì cả!\n"
-                    "*(Đã hỗ trợ dịch hơn 60 từ viết tắt: k, ko, dc, t, m, v, r, clgt, vl...)*\n\n"
-                    "*(Dùng `/leave` để đuổi chị đi, hoặc `/autotts tat` nếu muốn tắt tự đọc)*"
-                ),
-                color=discord.Color.green()
+        if not interaction.user.voice or not interaction.user.voice.channel:
+            await interaction.response.send_message(
+                "❌ Mày phải vào phòng voice trước rồi mới gọi tao vào được chứ con lợn!",
+                ephemeral=True
             )
-            embed.set_thumbnail(url="https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/1f399.png")
-            await interaction.followup.send(embed=embed)
-
-        except Exception as e:
-            logger.error(f"Lỗi join voice: {e}", exc_info=True)
-            await interaction.followup.send(f"❌ Không thể vào phòng thoại: {e}")
-
-    @app_commands.command(name="leave", description="Cho chị Google rời khỏi phòng thoại")
-    async def leave(self, interaction: discord.Interaction):
-        vc = interaction.guild.voice_client
-        if vc is None:
-            await interaction.response.send_message("Chị có trong phòng thoại đâu mà đuổi?", ephemeral=True)
             return
 
-        guild_id = interaction.guild_id
-        if guild_id in self.worker_tasks:
-            self.worker_tasks[guild_id].cancel()
-            del self.worker_tasks[guild_id]
-        if guild_id in self.queues:
-            del self.queues[guild_id]
+        voice_channel = interaction.user.voice.channel
+        voice_client = interaction.guild.voice_client
 
-        try:
-            await vc.disconnect(force=True)
-            await interaction.response.send_message("👋 Chị đi đây, lũ hề ở lại vui vẻ!")
-        except Exception as e:
-            await interaction.response.send_message(f"Lỗi khi rời phòng: {e}", ephemeral=True)
+        if voice_client and voice_client.is_connected():
+            if voice_client.channel.id == voice_channel.id:
+                await interaction.response.send_message(
+                    f"🔊 Tao đang ở trong kênh **{voice_channel.name}** rồi! Cứ chat trong này tao tự động đọc hết!",
+                    ephemeral=True
+                )
+                return
+            else:
+                await voice_client.move_to(voice_channel)
+        else:
+            voice_client = await voice_channel.connect()
 
-    @app_commands.command(name="autotts", description="Bật hoặc Tắt chế độ tự động đọc tin nhắn trong phòng Voice")
-    @app_commands.choices(trang_thai=[
-        app_commands.Choice(name="🟢 Bật tự động đọc", value="on"),
-        app_commands.Choice(name="🔴 Tắt tự động đọc", value="off")
-    ])
-    async def autotts(self, interaction: discord.Interaction, trang_thai: app_commands.Choice[str]):
-        is_on = (trang_thai.value == "on")
-        self.autotts_enabled[interaction.guild_id] = is_on
-        
-        status_text = "🟢 **ĐÃ BẬT** Tự động đọc tin nhắn chat!" if is_on else "🔴 **ĐÃ TẮT** Tự động đọc tin nhắn chat!"
-        desc = "Từ giờ bất kỳ tin nhắn nào trong kênh thoại sẽ được chị đọc to vào mic!" if is_on else "Chị sẽ chỉ đọc khi bạn dùng lệnh `/noi`!"
-        
         embed = discord.Embed(
-            title=status_text,
-            description=desc,
-            color=discord.Color.green() if is_on else discord.Color.red()
+            title="🎙️ CHỊ GOOGLE ĐÃ VÀO PHÒNG VOICE! 🔊",
+            description=f"✅ Đã kết nối vào **{voice_channel.name}**.\n\n"
+                        f"✨ **Tự Động Đọc Chat (Auto-TTS):** `BẬT`\n"
+                        f"👉 Ai không bật mic chỉ cần **gõ chữ trong chat của phòng này**, chị Google sẽ tự động đọc thay bạn từng câu trôi chảy!",
+            color=discord.Color.green()
         )
         await interaction.response.send_message(embed=embed)
 
-    @app_commands.command(name="noi", description="Nhờ chị Google đọc một câu cụ thể")
+    @app_commands.command(name="leave", description="Đuổi chị Google rời khỏi kênh voice")
+    async def leave(self, interaction: discord.Interaction):
+        voice_client = interaction.guild.voice_client
+        if not voice_client or not voice_client.is_connected():
+            await interaction.response.send_message("❌ Tao có ở trong phòng voice nào đâu mà đuổi?", ephemeral=True)
+            return
+
+        await voice_client.disconnect()
+        await interaction.response.send_message("👋 Chị đi đây, lũ hề ở lại vui vẻ nhé!")
+
+    @app_commands.command(name="noi", description="Chị Google đọc ngay câu này trong voice")
     async def noi(self, interaction: discord.Interaction, noi_dung: str):
-        await interaction.response.defer()
-        guild = interaction.guild
-        vc = guild.voice_client
+        voice_client = interaction.guild.voice_client
+        if not voice_client or not voice_client.is_connected():
+            await interaction.response.send_message(
+                "❌ Bot chưa vào kênh voice! Hãy dùng `/join` hoặc `!join` trước nhé.",
+                ephemeral=True
+            )
+            return
 
-        if not vc or not vc.is_connected():
-            channel = self.get_user_voice_channel(interaction.user, guild)
-            if not channel:
-                await interaction.followup.send("❌ Bạn phải vào một phòng thoại trước!", ephemeral=True)
-                return
-            try:
-                vc = await channel.connect(self_deaf=True, timeout=30.0)
-            except Exception as e:
-                await interaction.followup.send(f"❌ Không thể kết nối voice: {e}")
-                return
-
-        clean_msg = clean_text_for_tts(noi_dung)
-        text_to_speak = f"{interaction.user.display_name} nói: {clean_msg}"
-
-        queue = self.get_queue(guild.id)
-        await queue.put((text_to_speak, interaction.channel))
-        self.ensure_worker(guild)
-
-        await interaction.followup.send(f"🗣️ **Đã xếp hàng đọc:** {clean_msg}")
+        clean_text = clean_text_for_tts(noi_dung)
+        speech_text = f"{interaction.user.display_name} nói: {clean_text}"
+        await self.tts_queue.put((interaction.guild.id, speech_text, voice_client))
+        await interaction.response.send_message(f"🗣️ Đã đưa vào hàng chờ đọc: *{clean_text}*", ephemeral=True)
 
     @commands.command(name="join")
     async def cmd_join(self, ctx):
-        channel = self.get_user_voice_channel(ctx.author, ctx.guild)
-        if not channel:
-            await ctx.send("❌ Bạn phải vào phòng thoại trước!")
+        if not ctx.author.voice or not ctx.author.voice.channel:
+            await ctx.send("❌ Mày phải vào phòng voice trước rồi mới gọi tao vào được!")
             return
-        vc = ctx.guild.voice_client
-        if vc and vc.is_connected():
-            await vc.move_to(channel)
+        voice_channel = ctx.author.voice.channel
+        voice_client = ctx.guild.voice_client
+        if voice_client and voice_client.is_connected():
+            await voice_client.move_to(voice_channel)
         else:
-            await channel.connect(self_deaf=True, timeout=30.0)
-        self.autotts_enabled[ctx.guild.id] = True
-        self.ensure_worker(ctx.guild)
-        await ctx.send(f"🎙️ **Chị Google đã vào {channel.name}!** Tự động đọc tin nhắn chat đã kích hoạt!")
+            await voice_channel.connect()
+        await ctx.send(f"🔊 Chị Google đã vào phòng **{voice_channel.name}**! Ai câm mic cứ chat tao đọc hộ!")
 
     @commands.command(name="leave")
     async def cmd_leave(self, ctx):
-        vc = ctx.guild.voice_client
-        if vc:
-            await vc.disconnect(force=True)
+        voice_client = ctx.guild.voice_client
+        if voice_client and voice_client.is_connected():
+            await voice_client.disconnect()
             await ctx.send("👋 Chị đi đây!")
 
 
 async def setup(bot):
-    await bot.add_cog(VoiceTTS(bot))
+    await bot.add_cog(VoiceTTSCog(bot))
