@@ -10,7 +10,6 @@ from typing import Optional
 
 logger = logging.getLogger("AIChat")
 
-# System prompt định hình tính cách độc quyền cho Bot
 SYSTEM_INSTRUCTION = """
 Bạn là 'Culi của Ngựa' - chú bot AI kiêm Chúa Tể Cà Khịa và Học Bá của một server Discord lớp học Việt Nam.
 Tính cách và phong cách trả lời của bạn:
@@ -45,28 +44,53 @@ class AIChatCog(commands.Cog):
         self.bot = bot
         self.api_key = os.getenv("GEMINI_API_KEY")
         self.model = None
-        # Lưu phiên chat liên tục theo kênh: { channel_id: genai.ChatSession }
+        self.model_name = None
         self.chat_sessions = {}
         self.init_gemini()
 
     def init_gemini(self):
         self.api_key = os.getenv("GEMINI_API_KEY")
         if not self.api_key:
-            logger.warning("Chưa cấu hình GEMINI_API_KEY! Tính năng AI sẽ không hoạt động.")
+            logger.warning("Chưa cấu hình GEMINI_API_KEY!")
             return
 
         try:
             genai.configure(api_key=self.api_key)
-            self.model = genai.GenerativeModel(
-                model_name="gemini-1.5-flash",
-                system_instruction=SYSTEM_INSTRUCTION
-            )
-            logger.info("🤖 Đã khởi tạo thành công Google Gemini AI Model!")
+            
+            # Tự động quét và chọn Model phù hợp nhất của tài khoản
+            candidate_models = ["gemini-1.5-flash", "gemini-1.5-flash-latest", "gemini-2.0-flash", "gemini-1.5-pro", "gemini-pro"]
+            selected_model = None
+            
+            try:
+                available_models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
+                for cand in candidate_models:
+                    for avail in available_models:
+                        if cand in avail:
+                            selected_model = avail
+                            break
+                    if selected_model:
+                        break
+                if not selected_model and available_models:
+                    selected_model = available_models[0]
+            except Exception as e:
+                logger.warning(f"Không thể list models: {e}, dùng mặc định gemini-1.5-flash")
+                selected_model = "gemini-1.5-flash"
+
+            self.model_name = selected_model or "gemini-1.5-flash"
+            try:
+                self.model = genai.GenerativeModel(
+                    model_name=self.model_name,
+                    system_instruction=SYSTEM_INSTRUCTION
+                )
+            except Exception:
+                # Fallback nếu model cũ không nhận system_instruction
+                self.model = genai.GenerativeModel(model_name=self.model_name)
+
+            logger.info(f"🤖 Đã kích hoạt Gemini AI thành công với Model: {self.model_name}")
         except Exception as e:
             logger.error(f"Lỗi khởi tạo Gemini AI: {e}", exc_info=True)
 
     def get_chat_session(self, channel_id: int):
-        """Lấy hoặc tạo mới một phiên hội thoại có trí nhớ cho kênh"""
         if self.model is None:
             self.init_gemini()
         if self.model is None:
@@ -77,24 +101,28 @@ class AIChatCog(commands.Cog):
         return self.chat_sessions[channel_id]
 
     async def generate_ai_response(self, prompt: str, user_name: str, channel_id: int) -> str:
-        """Gửi prompt tới Gemini và nhận câu trả lời"""
         if self.model is None:
             self.init_gemini()
         if self.model is None:
-            return "❌ Chưa cấu hình `GEMINI_API_KEY`! Vui lòng nhờ Admin thêm API Key trên Render nhé."
+            return "❌ Chưa cấu hình `GEMINI_API_KEY`! Vui lòng thêm API Key trên Render nhé."
 
         formatted_prompt = f"[{user_name}]: {prompt}"
         try:
             chat = self.get_chat_session(channel_id)
-            # Chạy hàm sync generate của thư viện trong thread pool để không block event loop
             response = await asyncio.to_thread(chat.send_message, formatted_prompt)
             return response.text.strip()
         except Exception as e:
             logger.error(f"Lỗi gọi Gemini API: {e}")
-            # Nếu chat session bị lỗi token, reset lại chat session của kênh đó
             if channel_id in self.chat_sessions:
                 del self.chat_sessions[channel_id]
-            return f"😅 Não tao vừa bị đơ một tí: `{e}`. Mày hỏi lại câu khác xem nào!"
+            err_str = str(e)
+            if "404" in err_str or "API key not valid" in err_str:
+                return (
+                    "⚠️ **Mã API Key của bạn chưa đúng định dạng của Google AI Studio!**\n"
+                    "👉 Mã API Key chuẩn của Google thường bắt đầu bằng chữ `AIzaSy...`\n"
+                    "👉 Bạn hãy vào: https://aistudio.google.com/app/apikey bấm **Create API key** rồi dán lại vào Render nhé!"
+                )
+            return f"😅 Não tao vừa bị lag một tí: `{err_str}`. Mày hỏi lại câu khác xem nào!"
 
     # ================= LẮNG NGHE TIN NHẮN @BOT HOẶC REPLY =================
     @commands.Cog.listener()
@@ -102,7 +130,6 @@ class AIChatCog(commands.Cog):
         if message.author.bot or not message.guild:
             return
 
-        # Bỏ qua nếu là lệnh bắt đầu bằng !
         if message.content.startswith(("!", "/", "$")):
             return
 
@@ -118,7 +145,6 @@ class AIChatCog(commands.Cog):
                 pass
 
         if is_mentioned or is_reply_to_bot:
-            # Làm sạch nội dung câu hỏi (bỏ tag @bot)
             clean_content = message.clean_content.replace(f"@{self.bot.user.name}", "").strip()
             if not clean_content:
                 await message.reply("Ơi cái gì đấy ông cháu? Tag tao mà không hỏi gì à? 🤡")
