@@ -21,12 +21,13 @@ Tính cách và phong cách trả lời của bạn:
 5. Ngắn gọn & Súc tích: Trả lời đúng trọng tâm, định dạng markdown đẹp mắt (in đậm, danh sách gạch đầu dòng, code block nếu là lập trình).
 """
 
-FALLBACK_MODELS = [
+# Chỉ dùng các model Flash miễn phí (không dùng model Pro để tránh lỗi giới hạn Quota)
+FLASH_MODELS = [
     "gemini-3.7-flash",
     "gemini-flash-latest",
     "gemini-3.5-flash",
     "gemini-3.1-flash-lite",
-    "gemini-1.5-flash"
+    "gemini-3.5-flash-lite"
 ]
 
 def split_text(text: str, max_length: int = 1900) -> list[str]:
@@ -51,7 +52,6 @@ def split_text(text: str, max_length: int = 1900) -> list[str]:
 class AIChatCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        # Lưu lịch sử chat theo kênh: { channel_id: [ {"role": "user"/"model", "parts": [{"text": ...}]} ] }
         self.channel_history = {}
 
     async def call_gemini_api(self, prompt: str, user_name: str, channel_id: int) -> str:
@@ -59,7 +59,6 @@ class AIChatCog(commands.Cog):
         if not api_key:
             return "❌ Chưa cấu hình `GEMINI_API_KEY`! Vui lòng vào Render -> Environment để thêm API Key nhé."
 
-        # Quản lý lịch sử chat của kênh (giữ 8 tin nhắn gần nhất)
         if channel_id not in self.channel_history:
             self.channel_history[channel_id] = []
 
@@ -67,9 +66,9 @@ class AIChatCog(commands.Cog):
         user_message = f"[{user_name}]: {prompt}"
         history.append({"role": "user", "parts": [{"text": user_message}]})
 
-        # Giữ tối đa 10 tin nhắn gần nhất
-        if len(history) > 10:
-            history = history[-10:]
+        # Giữ tối đa 8 tin nhắn gần nhất để bộ nhớ luôn nhẹ và nhanh
+        if len(history) > 8:
+            history = history[-8:]
             self.channel_history[channel_id] = history
 
         payload = {
@@ -79,13 +78,12 @@ class AIChatCog(commands.Cog):
             "contents": history
         }
 
-        # Thử lần lượt các model tốt nhất
         last_error = None
-        for model in FALLBACK_MODELS:
+        for model in FLASH_MODELS:
             url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
             try:
                 async with aiohttp.ClientSession() as session:
-                    async with session.post(url, json=payload, timeout=aiohttp.ClientTimeout(total=25)) as response:
+                    async with session.post(url, json=payload, timeout=aiohttp.ClientTimeout(total=20)) as response:
                         if response.status == 200:
                             data = await response.json()
                             candidates = data.get("candidates", [])
@@ -94,21 +92,19 @@ class AIChatCog(commands.Cog):
                                 if parts:
                                     reply_text = parts[0].get("text", "").strip()
                                     if reply_text:
-                                        # Lưu câu trả lời của model vào lịch sử
                                         history.append({"role": "model", "parts": [{"text": reply_text}]})
                                         return reply_text
                         else:
-                            error_data = await response.text()
-                            logger.warning(f"Model {model} trả về mã {response.status}: {error_data[:200]}")
-                            last_error = f"HTTP {response.status}"
+                            error_text = await response.text()
+                            logger.warning(f"Model {model} lỗi {response.status}: {error_text[:150]}")
+                            last_error = f"Model {model} - Mã {response.status}"
             except Exception as e:
-                logger.error(f"Lỗi khi kết nối model {model}: {e}")
+                logger.error(f"Lỗi kết nối {model}: {e}")
                 last_error = str(e)
 
-        # Nếu lỗi toàn bộ, xóa bớt lịch sử
         if channel_id in self.channel_history:
             del self.channel_history[channel_id]
-        return f"😅 Não tao vừa bị đơ một tí ({last_error}). Mày hỏi lại câu khác xem nào! 🤡"
+        return f"😅 Não tao vừa bị đơ một tí. Mày thử hỏi lại một câu khác xem nào! 🤡"
 
     # ================= LẮNG NGHE TIN NHẮN @BOT HOẶC REPLY =================
     @commands.Cog.listener()
@@ -116,7 +112,6 @@ class AIChatCog(commands.Cog):
         if message.author.bot or not message.guild:
             return
 
-        # Bỏ qua nếu là lệnh bắt đầu bằng !
         if message.content.startswith(("!", "/", "$")):
             return
 
