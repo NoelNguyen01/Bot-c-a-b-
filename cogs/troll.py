@@ -253,7 +253,7 @@ class TrollCog(commands.Cog):
         embed.add_field(
             name="🚀 2. Kho Vũ Khí Hạng Nặng Được Trang Bị",
             value=(
-                "• 🔊 **Auto-TTS 600 ký tự:** Tự động đọc chat voice liền mạch, không vấp một chữ\n"
+                "• 🔊 **Auto-TTS 600 ký tự:** Tự động đọc chat voice liền mạch, ghim kênh đọc bằng `/set_tts`\n"
                 "• 🤖 **AI Cà Khịa 1-2 câu:** Phán câu nào cay câu đó, giải toán trong 0.1 giây\n"
                 "• 🥷 **Ném Đá Giấu Tay (`/nemda`):** Bóc phốt nặc danh bí mật 100%\n"
                 "• 🛞 **Máy Quét Lốp Xe (`/checklop`):** Phát hiện simp lỏ và đại sứ Michelin\n"
@@ -306,42 +306,42 @@ class TrollCog(commands.Cog):
         view = BotIntroView()
         await ctx.send(embed=embed, view=view)
 
-    # ================= CÁC LỆNH KHÁC =================
+    # ================= CẨM NANG HDSD GỌN GÀNG =================
     @app_commands.command(name="hdsd", description="Xem cẩm nang hướng dẫn sử dụng toàn bộ lệnh của Bot")
     async def hdsd(self, interaction: discord.Interaction):
         embed = discord.Embed(
             title="📖 CẨM NANG HƯỚNG DẪN SỬ DỤNG BOT 🤖✨",
-            description="Chào mừng bạn đến với Server! Dưới đây là toàn bộ danh sách các tính năng giải trí, cấp độ và quản trị.",
+            description="Chào mừng bạn đến với **culi của Ngựa** — Chuyên gia Cà Khịa, AI Trợ Lý & Auto-TTS Voice!",
             color=discord.Color.purple()
         )
         
         embed.add_field(
-            name="⭐ 1. Hệ Thống Cày Cấp & Level",
-            value="• `/rank [@user]`: Xem thẻ cấp độ, tổng EXP và tiến trình thăng cấp.\n• `/top`: Xem Bảng Phong Thần Top 10 cao thủ cày cấp.\n*(💬 Nhắn tin chat + 🎙️ Treo phòng Voice để nhận EXP tự động mỗi phút)*",
+            name="🤖 1. Trí Tuệ Nhân Tạo AI (Google Gemini 3.1 Flash)",
+            value="• `@culi của Ngựa <câu_hỏi>` hoặc `Reply tin nhắn`: Hỏi bài tập, làm thơ, cà khịa.\n• `/ai <câu_hỏi>`: Trò chuyện riêng với AI.",
             inline=False
         )
 
         embed.add_field(
-            name="🥷 2. Ném Đá Giấu Tay & Tâm Sự Nặc Danh",
+            name="🔊 2. Chị Google Voice & Auto-TTS",
+            value="• `/join`: Mời bot vào phòng voice (Tự động đọc chat).\n• `/leave`: Cho bot rời phòng voice.\n• `/noi <nội_dung>`: Chị Google đọc ngay câu này.",
+            inline=False
+        )
+
+        embed.add_field(
+            name="🥷 3. Ném Đá Giấu Tay & Tâm Sự Nặc Danh",
             value="• `/nemda`: Gửi tâm sự/bóc phốt ẩn danh 100% về thẳng kênh nặc danh riêng.",
             inline=False
         )
 
         embed.add_field(
-            name="🤡 3. Tính Năng Giải Trí & Troll",
-            value="• `/checklop @user`: Đo độ simp / lụy tình từ 0% đến 100% kèm chẩn đoán.\n• `/joker @user <lý_do>`: Tặng danh hiệu hề chúa + văn mẫu Joker.\n• `/spamtag @user <nội_dung> <số_lần>`: Spam tag réo tên với kho 100 câu bựa (1-10 lần, cooldown 45s).",
+            name="🤡 4. Tính Năng Giải Trí & Troll Học Đường",
+            value="• `/checklop @user`: Đo độ simp / lụy tình từ 0% đến 100% kèm chẩn đoán.\n• `/joker @user <lý_do>`: Tặng danh hiệu hề chúa + văn mẫu Joker.\n• `/spamtag @user <nội_dung> <số_lần>`: Spam tag réo tên với kho 100 câu bựa (1-10 lần, cooldown 45s).\n• `!culi` / `/culi`: Mở hồ sơ danh tính tối mật siêu màu mè!",
             inline=False
         )
 
         embed.add_field(
-            name="💸 4. Sổ Ghi Nợ Mặt Dày",
+            name="💸 5. Sổ Ghi Nợ Mặt Dày",
             value="• `/doino @user <số_tiền> <lý_do>`: Ghi sổ nợ kèm 3 nút tương tác đòi tiền.\n• `/so_no`: Xem danh sách top nợ nần nhiều nhất server.",
-            inline=False
-        )
-
-        embed.add_field(
-            name="🔊 5. Chị Google Đọc Hộ Trong Voice",
-            value="• `/noi <nội_dung>`: Chị Google tự động bay vào phòng voice đọc văn bản bằng tiếng Việt.\n• `/join`: Mời bot vào phòng thoại.\n• `/leave`: Cho bot rời phòng thoại.",
             inline=False
         )
 
@@ -353,7 +353,7 @@ class TrollCog(commands.Cog):
 
         embed.add_field(
             name="⚙️ 7. Lệnh Quản Trị (Dành Cho Admin 🔒)",
-            value="• `/xoa_no @user`: Admin xóa toàn bộ nợ của một người.\n• `/clear_so_no`: Admin xé toàn bộ sổ nợ của Server.\n• `/set_tts #channel`: Ghim kênh text chuyên dụng để bot đọc voice.\n• `/clear_tts`: Hủy ghim kênh riêng (chỉ đọc trong chat phòng voice).\n• `/set_admin_log #channel`: Cài đặt kênh bí mật giám sát toàn bộ hoạt động.\n• `/set_confession #channel`: Cài đặt kênh riêng tiếp nhận thư nặc danh.\n• `/set_welcome #channel`: Cài đặt kênh chào mừng & tiễn thành viên.\n• `/set_autorole @role`: Tự động cấp vai trò cho người mới.\n• `/set_rule <nội_dung>`: Thêm nội quy riêng cho Server.",
+            value="• `/set_tts #channel`: Ghim kênh text chuyên dụng để bot đọc voice.\n• `/clear_tts`: Hủy ghim kênh riêng (chỉ đọc trong chat phòng voice).\n• `/set_admin_log #channel`: Kênh bí mật giám sát toàn bộ hoạt động.\n• `/set_confession #channel`: Kênh riêng tiếp nhận thư nặc danh.\n• `/set_welcome #channel`: Kênh chào mừng & tiễn thành viên.\n• `/set_autorole @role`: Tự động cấp vai trò cho người mới.\n• `/set_rule <nội_dung>`: Thêm nội quy riêng cho Server.\n• `/xoa_no @user` & `/clear_so_no`: Quản lý xóa sổ nợ.",
             inline=False
         )
 
