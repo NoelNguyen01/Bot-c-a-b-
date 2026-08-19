@@ -359,8 +359,8 @@ class VoiceTTSCog(commands.Cog):
             if not clean_text:
                 return
 
-            if len(clean_text) > 150:
-                clean_text = clean_text[:150] + " và còn nhiều chữ nữa..."
+            if len(clean_text) > 600:
+                clean_text = clean_text[:600] + " và còn nhiều chữ nữa..."
 
             speech_text = f"{message.author.display_name} nói: {clean_text}"
             await self.tts_queue.put((message.guild.id, speech_text, voice_client))
