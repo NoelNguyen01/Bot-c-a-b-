@@ -93,33 +93,49 @@ class TrollBot(commands.Bot):
         else:
             await interaction.response.send_message(error_msg, ephemeral=True)
 
-    async def purge_and_sync_commands(self, guild: discord.Guild = None):
-        """Hàm dọn dẹp triệt để mọi lệnh rác cũ trên Discord API"""
-        logger.info("Bắt đầu quy trình dọn dẹp triệt để lệnh Discord...")
-        
-        # 1. Lấy danh sách tên lệnh hợp lệ hiện tại trong code
-        valid_command_names = {cmd.name for cmd in self.tree.get_commands()}
-        logger.info(f"Các lệnh hợp lệ hiện tại ({len(valid_command_names)}): {valid_command_names}")
+    async def deep_clean_commands(self) -> list:
+        """Xóa vĩnh viễn từng lệnh rác trực tiếp từ máy chủ Discord"""
+        logger.info("Bắt đầu truy quét và xóa từng lệnh rác...")
+        app_id = self.application_id or self.user.id
+        current_valid_names = {cmd.name for cmd in self.tree.get_commands()}
+        deleted_cmds = []
 
-        # 2. Xóa sạch mọi lệnh thừa ở từng Guild
-        target_guilds = [guild] if guild else self.guilds
-        for g in target_guilds:
-            try:
-                # Xóa sạch guild commands
-                self.tree.clear_commands(guild=g)
-                await self.tree.sync(guild=g)
-                logger.info(f"🧹 Đã xóa sạch guild commands cho {g.name}")
-            except Exception as e:
-                logger.warning(f"Lỗi clear guild commands {g.name}: {e}")
-
-        # 3. Đồng bộ lại Global tree chuẩn xác 100%
+        # 1. Quét và xóa các Global Commands không còn trong code
         try:
-            synced_global = await self.tree.sync()
-            logger.info(f"⚡ Đã đồng bộ Global thành công ({len(synced_global)} lệnh): {[c.name for c in synced_global]}")
-            return synced_global
+            global_cmds = await self.tree.fetch_commands()
+            for cmd in global_cmds:
+                if cmd.name not in current_valid_names:
+                    try:
+                        await self.http.delete_global_command(app_id, cmd.id)
+                        logger.info(f"🔥 ĐÃ XÓA TRỰC TIẾP LỆNH GLOBAL RÁC: /{cmd.name} (ID: {cmd.id})")
+                        deleted_cmds.append(f"`/{cmd.name}`")
+                    except Exception as e:
+                        logger.error(f"Lỗi xóa lệnh /{cmd.name}: {e}")
         except Exception as e:
-            logger.error(f"Lỗi sync global: {e}")
-            raise e
+            logger.error(f"Lỗi fetch global commands: {e}")
+
+        # 2. Quét và xóa các Guild Commands ở từng Server
+        for g in self.guilds:
+            try:
+                guild_cmds = await self.tree.fetch_commands(guild=g)
+                for cmd in guild_cmds:
+                    if cmd.name not in current_valid_names:
+                        try:
+                            await self.http.delete_guild_command(app_id, g.id, cmd.id)
+                            logger.info(f"🔥 ĐÃ XÓA LỆNH GUILD RÁC: /{cmd.name} ở Server {g.name}")
+                            deleted_cmds.append(f"`/{cmd.name}` (ở {g.name})")
+                        except Exception as e:
+                            logger.error(f"Lỗi xóa guild cmd /{cmd.name}: {e}")
+            except Exception as e:
+                logger.error(f"Lỗi fetch guild commands {g.name}: {e}")
+
+        # 3. Đồng bộ lại danh sách chuẩn sạch sẽ
+        try:
+            await self.tree.sync()
+        except Exception as e:
+            logger.error(f"Lỗi sync: {e}")
+
+        return deleted_cmds
 
     async def on_ready(self) -> None:
         logger.info(f"Bot đã đăng nhập thành công: {self.user} (ID: {self.user.id})")
@@ -131,10 +147,15 @@ class TrollBot(commands.Bot):
         except Exception:
             pass
 
+        # Tự động dọn sạch rác ngay khi khởi động
         try:
-            await self.purge_and_sync_commands()
+            deleted = await self.deep_clean_commands()
+            if deleted:
+                logger.info(f"Đã tự động xóa sạch các lệnh rác: {', '.join(deleted)}")
+            else:
+                logger.info("Không có lệnh rác nào cần xóa.")
         except Exception as e:
-            logger.error(f"Lỗi tự động purge khi on_ready: {e}")
+            logger.error(f"Lỗi dọn rác on_ready: {e}")
 
         logger.info(f"Đang kết nối tới {len(self.guilds)} máy chủ Discord.")
         print("\n" + "="*50)
@@ -147,15 +168,18 @@ bot = TrollBot()
 @bot.command(name="sync")
 @commands.has_permissions(administrator=True)
 async def manual_sync(ctx):
-    """Lệnh !sync cho Admin để xóa tận gốc mọi lệnh cũ trên Discord"""
+    """Lệnh !sync cho Admin để ép xóa vĩnh viễn mọi lệnh rác từ Discord API"""
     async with ctx.typing():
         try:
-            synced = await bot.purge_and_sync_commands(guild=ctx.guild)
-            cmd_list = ", ".join([f"`/{c.name}`" for c in synced])
+            deleted = await bot.deep_clean_commands()
+            valid_cmds = [f"`/{c.name}`" for c in bot.tree.get_commands()]
+            
+            del_msg = f"🔥 **Đã xóa vĩnh viễn các lệnh cờ bạc/rác:** {', '.join(deleted)}\n\n" if deleted else "✨ **Không còn lệnh rác nào trên Discord!**\n\n"
             await ctx.send(
-                f"🧹 **ĐÃ XÓA SẠCH 100% LỆNH RÁC & CỜ BẠC CŨ TRÊN DISCORD!** 🎉\n\n"
-                f"📋 **Danh sách chuẩn hiện tại ({len(synced)} lệnh):**\n{cmd_list}\n\n"
-                f"👉 *Nếu Discord chưa cập nhật ngay, bạn hãy bấm **Ctrl + R** (hoặc khởi động lại app Discord) để xóa cache nhé!*"
+                f"🧹 **KẾT QUẢ DỌN DẸP DISCORD:**\n"
+                f"{del_msg}"
+                f"📋 **Danh sách lệnh chuẩn ({len(valid_cmds)} lệnh):**\n{', '.join(valid_cmds)}\n\n"
+                f"👉 *Nhấn **Ctrl + R** trên Discord để làm mới bảng gợi ý!*"
             )
         except Exception as e:
             await ctx.send(f"❌ Lỗi khi sync: `{e}`")
