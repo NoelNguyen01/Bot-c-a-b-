@@ -111,20 +111,21 @@ class TrollBot(commands.Bot):
         except Exception:
             pass
 
-        # ĐỒNG BỘ LỆNH SLASH TỨC THÌ CHO TỪNG SERVER (KHÔNG CẦN ĐỢI GLOBAL CACHE)
+        # XÓA TOÀN BỘ LỆNH CŨ Ở GUILD ĐỂ HẾT BỊ DUPLICATE TRÊN DISCORD
         for guild in self.guilds:
             try:
-                self.tree.copy_global_to(guild=guild)
-                synced_guild = await self.tree.sync(guild=guild)
-                logger.info(f"⚡ Đã đồng bộ tức thì {len(synced_guild)} lệnh Slash cho Server: {guild.name}")
+                self.tree.clear_commands(guild=guild)
+                await self.tree.sync(guild=guild)
+                logger.info(f"🧹 Đã xóa sạch lệnh rác cho Server: {guild.name}")
             except Exception as e:
-                logger.error(f"Lỗi sync guild {guild.name}: {e}")
+                logger.error(f"Lỗi clear guild {guild.name}: {e}")
 
-        # Đồng bộ Global dự phòng
+        # Đồng bộ danh sách Global sạch sẽ duy nhất
         try:
-            await self.tree.sync()
-        except Exception:
-            pass
+            synced = await self.tree.sync()
+            logger.info(f"⚡ Đã đồng bộ {len(synced)} lệnh Global sạch sẽ 100%!")
+        except Exception as e:
+            logger.error(f"Lỗi sync global: {e}")
 
         logger.info(f"Đang kết nối tới {len(self.guilds)} máy chủ Discord.")
         print("\n" + "="*50)
@@ -137,14 +138,15 @@ bot = TrollBot()
 @bot.command(name="sync")
 @commands.has_permissions(administrator=True)
 async def manual_sync(ctx):
-    """Lệnh !sync cho Admin để ép bot cập nhật toàn bộ Slash Commands ngay lập tức"""
+    """Lệnh !sync cho Admin để xóa sạch duplicate và làm sạch danh sách lệnh"""
     async with ctx.typing():
         try:
-            bot.tree.copy_global_to(guild=ctx.guild)
-            synced = await bot.tree.sync(guild=ctx.guild)
-            await ctx.send(f"⚡ **ĐÃ ĐỒNG BỘ THÀNH CÔNG {len(synced)} LỆNH SLASH COMMANDS CHO SERVER NÀY!** 🎉\n(Các lệnh /taixiu, /xidach, /flip, /an_xin, /vi, /diemdanh, /lam_thue... đã sẵn sàng!)")
+            bot.tree.clear_commands(guild=ctx.guild)
+            await bot.tree.sync(guild=ctx.guild)
+            synced = await bot.tree.sync()
+            await ctx.send(f"🧹 **ĐÃ XÓA SẠCH CÁC LỆNH RÁC / TRÙNG LẶP (DUPLICATE)!** 🎉\n⚡ Danh sách chuẩn hiện có đúng **{len(synced)} lệnh duy nhất**.\n👉 *Hãy nhấn `Ctrl + R` (hoặc khởi động lại app Discord) để làm mới bảng gợi ý!*")
         except Exception as e:
-            await ctx.send(f"❌ Lỗi khi sync lệnh: `{e}`")
+            await ctx.send(f"❌ Lỗi khi sync: `{e}`")
 
 
 async def main() -> None:
