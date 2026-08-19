@@ -103,7 +103,6 @@ class TrollBot(commands.Bot):
         """Sự kiện kích hoạt khi bot sẵn sàng hoạt động"""
         logger.info(f"Bot đã đăng nhập thành công: {self.user} (ID: {self.user.id})")
 
-        # Cài đặt trạng thái sáng đèn Online
         try:
             await self.change_presence(
                 status=discord.Status.online,
@@ -112,18 +111,20 @@ class TrollBot(commands.Bot):
         except Exception:
             pass
 
-        # XÓA TOÀN BỘ LỆNH GUILD TRÙNG LẶP ĐỂ DANH SÁCH CHỈ CÒN 1 DÒNG DUY NHẤT
+        # ĐỒNG BỘ LỆNH SLASH TỨC THÌ CHO TỪNG SERVER (KHÔNG CẦN ĐỢI GLOBAL CACHE)
         for guild in self.guilds:
             try:
-                self.tree.clear_commands(guild=guild)
-                await self.tree.sync(guild=guild)
-                logger.info(f"🧹 Đã xóa sạch lệnh trùng lặp cho Server: {guild.name}")
+                self.tree.copy_global_to(guild=guild)
+                synced_guild = await self.tree.sync(guild=guild)
+                logger.info(f"⚡ Đã đồng bộ tức thì {len(synced_guild)} lệnh Slash cho Server: {guild.name}")
             except Exception as e:
-                logger.error(f"Lỗi clear guild {guild.name}: {e}")
+                logger.error(f"Lỗi sync guild {guild.name}: {e}")
 
-        # Đồng bộ danh sách lệnh Global duy nhất
-        synced = await self.tree.sync()
-        logger.info(f"⚡ Đã đồng bộ danh sách {len(synced)} lệnh Global sạch sẽ 100%!")
+        # Đồng bộ Global dự phòng
+        try:
+            await self.tree.sync()
+        except Exception:
+            pass
 
         logger.info(f"Đang kết nối tới {len(self.guilds)} máy chủ Discord.")
         print("\n" + "="*50)
@@ -131,12 +132,26 @@ class TrollBot(commands.Bot):
         print("="*50 + "\n")
 
 
+bot = TrollBot()
+
+@bot.command(name="sync")
+@commands.has_permissions(administrator=True)
+async def manual_sync(ctx):
+    """Lệnh !sync cho Admin để ép bot cập nhật toàn bộ Slash Commands ngay lập tức"""
+    async with ctx.typing():
+        try:
+            bot.tree.copy_global_to(guild=ctx.guild)
+            synced = await bot.tree.sync(guild=ctx.guild)
+            await ctx.send(f"⚡ **ĐÃ ĐỒNG BỘ THÀNH CÔNG {len(synced)} LỆNH SLASH COMMANDS CHO SERVER NÀY!** 🎉\n(Các lệnh /taixiu, /xidach, /flip, /an_xin, /vi, /diemdanh, /lam_thue... đã sẵn sàng!)")
+        except Exception as e:
+            await ctx.send(f"❌ Lỗi khi sync lệnh: `{e}`")
+
+
 async def main() -> None:
     if not TOKEN:
         logger.critical("Không tìm thấy DISCORD_TOKEN trong file .env! Vui lòng cấu hình token trước khi khởi chạy.")
         sys.exit(1)
 
-    bot = TrollBot()
     async with bot:
         await bot.start(TOKEN)
 
