@@ -19,6 +19,8 @@ CONFIG_FILE = os.path.join(DATA_DIR, "config.json")
 CLOWN_ICON_URL = "https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/1f921.png"
 SCROLL_ICON_URL = "https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/1f4dc.png"
 SECRET_ICON_URL = "https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/1f977.png"
+CROWN_ICON_URL = "https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/1f451.png"
+SPARKLES_GIF = "https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/2728.png"
 
 MEMORY_CONFESSION_CHANNELS = {}
 
@@ -35,6 +37,37 @@ def save_json(filepath, data):
     os.makedirs(DATA_DIR, exist_ok=True)
     with open(filepath, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=4, ensure_ascii=False)
+
+
+# ================= VIEW TƯƠNG TÁC CHO LỆNH ẨN GIỚI THIỆU BOT =================
+class BotIntroView(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=None)
+
+    @discord.ui.button(label="👑 Khen Bot Đẹp Trai", style=discord.ButtonStyle.success, custom_id="btn_intro_praise")
+    async def praise_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        roasts = [
+            "✨ Cảm ơn người anh em có mắt nhìn! Biết thế là tốt, cộng 10 điểm thanh lịch!",
+            "😎 Đẹp trai từ trong trứng rồi, không cần khen ai cũng biết!",
+            "💅 Quá khen quá khen! Đẹp trai thông minh tài giỏi là tao chứ ai!"
+        ]
+        await interaction.response.send_message(f"💖 **{interaction.user.display_name}**: {random.choice(roasts)}", ephemeral=True)
+
+    @discord.ui.button(label="🥊 Đấm Vào Mồm Bot", style=discord.ButtonStyle.danger, custom_id="btn_intro_punch")
+    async def punch_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        punches = [
+            "🤡 Úi chà chà! Mày vừa đấm vào màn hình điện thoại à? Đau tay chưa con lợn?",
+            "🛡️ Khiên phản đòn kích hoạt! Cú đấm bật ngược lại vào mặt mày 100 damage!",
+            "🚨 Đã chụp ảnh gương mặt hung thủ báo cáo cho Sếp Ngựa xử lý!"
+        ]
+        await interaction.response.send_message(f"💥 **{interaction.user.display_name}**: {random.choice(punches)}", ephemeral=True)
+
+    @discord.ui.button(label="🧠 Thử Trí Khôn AI", style=discord.ButtonStyle.primary, custom_id="btn_intro_ai")
+    async def ai_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.send_message(
+            "👉 Muốn thử độ độc miệng của tao thì hãy tag thẳng: `@culi của Ngựa 1+1 bằng mấy?` hoặc gõ `/ai` nhé ông cháu! 🤡",
+            ephemeral=True
+        )
 
 
 class DebtView(discord.ui.View):
@@ -130,7 +163,6 @@ class NemDaModal(discord.ui.Modal, title='Ném đá giấu tay / Tâm sự nặc
         names = ['Kẻ giấu mặt 🥷', 'Ninja làng Lá 🍃', 'Bóng ma học đường 👻', 'Thần bí nhân 🎭', 'Người qua đường 🕶️']
         author_name = random.choice(names)
         
-        # 1. Tìm kênh nhận thư nặc danh
         config = load_json(CONFIG_FILE)
         guild_id = str(interaction.guild_id)
         target_channel_id = config.get(guild_id, {}).get("confession_channel_id") or MEMORY_CONFESSION_CHANNELS.get(guild_id)
@@ -142,7 +174,6 @@ class NemDaModal(discord.ui.Modal, title='Ném đá giấu tay / Tâm sự nặc
             except Exception:
                 pass
         
-        # Tự động quét kênh có tên 'nặc-danh', 'nặc', 'tam-su', 'confession'
         if not target_channel and interaction.guild:
             for c in interaction.guild.channels:
                 c_name = c.name.lower()
@@ -154,14 +185,12 @@ class NemDaModal(discord.ui.Modal, title='Ném đá giấu tay / Tâm sự nặc
         if not target_channel:
             target_channel = interaction.channel
 
-        # 2. Đếm số thứ tự thư
         count = config.get(guild_id, {}).get("confession_count", 0) + 1
         if guild_id not in config:
             config[guild_id] = {}
         config[guild_id]["confession_count"] = count
         save_json(CONFIG_FILE, config)
 
-        # 3. Gửi thư ẩn danh ra KÊNH NẶC DANH
         embed = discord.Embed(
             title=f"📜 Thư Nặc Danh #{count:03d}",
             description=self.confession.value,
@@ -176,7 +205,6 @@ class NemDaModal(discord.ui.Modal, title='Ném đá giấu tay / Tâm sự nặc
             except Exception:
                 await interaction.followup.send(embed=embed)
 
-        # 4. GỬI BẢN LOG VẠCH TRẦN DANH TÍNH VÀO KÊNH ADMIN LOG 🕵️
         await send_log_to_admin(
             interaction.guild,
             title="🕵️ [BÓC TRẦN] NGƯỜI GỬI THƯ NẶC DANH",
@@ -195,6 +223,97 @@ class TrollCog(commands.Cog):
         self.bot = bot
         self.spam_prefixes = SPAM_TAG_PREFIXES
 
+    # ================= LỆNH ẨN GIỚI THIỆU BOT SIÊU MÀU MÈ =================
+    def build_fancy_intro_embed(self, bot_user: discord.User) -> discord.Embed:
+        embed = discord.Embed(
+            title="👑✨ HỒ SƠ DANH TÍNH TỐI MẬT: CULI CỦA NGỰA ✨👑",
+            description=(
+                "```yaml\n"
+                "⚡ CHỨC DANH: TỔNG TƯ LỆNH CÀ KHỊA & PHÁ HOẠI HỌC ĐƯỜNG ⚡\n"
+                "💎 VỊ THẾ: ĐỆ NHẤT CULI CHẠY DEADLINE CHO ĐẠI CA NGỰA\n"
+                "```\n"
+                "🌟 **Chào mừng đến với cỗ máy tấu hài thế hệ mới!** Dưới đây là thông số kỹ thuật và kho vũ khí hủy diệt của bổn tọa:"
+            ),
+            color=discord.Color.from_rgb(255, 20, 147)  # Hồng Neon siêu nổi bật
+        )
+        if bot_user.avatar:
+            embed.set_thumbnail(url=bot_user.avatar.url)
+        else:
+            embed.set_thumbnail(url=CROWN_ICON_URL)
+
+        embed.add_field(
+            name="💎 1. Hệ Thống Danh Hiệu & Phẩm Chất",
+            value=(
+                "• 👑 **Chúa Tể Troll Lớp Học:** Độc mồm số 1, chuyên gia thọc tim đen\n"
+                "• 🧠 **Học Bá Siêu Trí Tuệ:** Sở hữu bộ não Google Gemini 3.1 Flash\n"
+                "• 🎙️ **Chị Google Vietsub:** Nạp từ điển 180+ teencode, nói lái từ tục siêu mượt"
+            ),
+            inline=False
+        )
+
+        embed.add_field(
+            name="🚀 2. Kho Vũ Khí Hạng Nặng Được Trang Bị",
+            value=(
+                "• 🔊 **Auto-TTS 600 ký tự:** Tự động đọc chat voice liền mạch, không vấp một chữ\n"
+                "• 🤖 **AI Cà Khịa 1-2 câu:** Phán câu nào cay câu đó, giải toán trong 0.1 giây\n"
+                "• 🥷 **Ném Đá Giấu Tay (`/nemda`):** Bóc phốt nặc danh bí mật 100%\n"
+                "• 🛞 **Máy Quét Lốp Xe (`/checklop`):** Phát hiện simp lỏ và đại sứ Michelin\n"
+                "• 💸 **Sổ Nợ Phong Thần (`/doino`, `/so_no`):** Đòi nợ mặt dày không lối thoát"
+            ),
+            inline=False
+        )
+
+        embed.add_field(
+            name="📊 3. Bảng Chỉ Số Sức Mạnh Vô Cực (Combat Power)",
+            value=(
+                "```ini\n"
+                "[ Độ Bựa & Cà Khịa ]  ██████████ 100/100 (Cay đỏ mắt)\n"
+                "[ Khẩu Nghiệp Tối Thượng ] ██████████ 999+ (Sát thương chuẩn)\n"
+                "[ Tốc Độ Phản Hồi ]   █████████░ 0.5 Giây (Siêu thanh)\n"
+                "[ Tài Sản Ròng ]      -999 Tỷ NoelCoin (Mặt dày không trả)\n"
+                "```"
+            ),
+            inline=False
+        )
+
+        embed.add_field(
+            name="🛡️ 4. Đại Ca Bảo Kê & Nền Tảng",
+            value="👑 **Đại Ca Bảo Kê:** `Ngựa Ca` | 💻 **Công Nghệ:** `Discord.py 2.x + Google Gemini AI`",
+            inline=False
+        )
+
+        embed.set_footer(
+            text="✨ Phiên Bản Culi Pro Max Super VIP 2026 • Độc Quyền Tại Server Tuổi Trẻ Tài Cao ✨",
+            icon_url=CROWN_ICON_URL
+        )
+        return embed
+
+    @app_commands.command(name="whoami", description="✨ Lệnh ẩn: Mở hồ sơ danh tính tối mật siêu màu mè của Bot")
+    async def whoami_slash(self, interaction: discord.Interaction):
+        embed = self.build_fancy_intro_embed(self.bot.user)
+        view = BotIntroView()
+        await interaction.response.send_message(embed=embed, view=view)
+
+    @app_commands.command(name="culi", description="✨ Lệnh ẩn: Xem thông số sức mạnh vô cực của Culi của Ngựa")
+    async def culi_slash(self, interaction: discord.Interaction):
+        await self.whoami_slash(interaction)
+
+    @commands.command(name="intro")
+    async def cmd_intro(self, ctx):
+        """!intro -> Lệnh nhanh mở hồ sơ siêu màu mè"""
+        embed = self.build_fancy_intro_embed(self.bot.user)
+        view = BotIntroView()
+        await ctx.send(embed=embed, view=view)
+
+    @commands.command(name="whoami")
+    async def cmd_whoami(self, ctx):
+        await self.cmd_intro(ctx)
+
+    @commands.command(name="culi")
+    async def cmd_culi(self, ctx):
+        await self.cmd_intro(ctx)
+
+    # ================= CÁC LỆNH KHÁC =================
     @app_commands.command(name="hdsd", description="Xem cẩm nang hướng dẫn sử dụng toàn bộ lệnh của Bot")
     async def hdsd(self, interaction: discord.Interaction):
         embed = discord.Embed(
