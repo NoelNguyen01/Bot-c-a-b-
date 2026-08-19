@@ -269,7 +269,7 @@ class TrollCog(commands.Cog):
                 "[ Độ Bựa & Cà Khịa ]  ██████████ 100/100 (Cay đỏ mắt)\n"
                 "[ Khẩu Nghiệp Tối Thượng ] ██████████ 999+ (Sát thương chuẩn)\n"
                 "[ Tốc Độ Phản Hồi ]   █████████░ 0.5 Giây (Siêu thanh)\n"
-                "[ Tài Sản Ròng ]      -999 Tỷ NoelCoin (Mặt dày không trả)\n"
+                "[ Độ Giàu Có ]       -999 Tỷ Đồng (Nợ ngập đầu, mặt dày không trả)\n"
                 "```"
             ),
             inline=False
