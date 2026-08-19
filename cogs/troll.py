@@ -353,7 +353,7 @@ class TrollCog(commands.Cog):
 
         embed.add_field(
             name="⚙️ 7. Lệnh Quản Trị (Dành Cho Admin 🔒)",
-            value="• `/xoa_no @user`: Admin xóa toàn bộ nợ của một người.\n• `/clear_so_no`: Admin xé toàn bộ sổ nợ của Server.\n• `/set_admin_log #channel`: Cài đặt kênh bí mật giám sát toàn bộ hoạt động.\n• `/set_confession #channel`: Cài đặt kênh riêng tiếp nhận thư nặc danh.\n• `/set_welcome #channel`: Cài đặt kênh chào mừng & tiễn thành viên.\n• `/set_autorole @role`: Tự động cấp vai trò cho người mới.\n• `/set_rule <nội_dung>`: Thêm nội quy riêng cho Server.",
+            value="• `/xoa_no @user`: Admin xóa toàn bộ nợ của một người.\n• `/clear_so_no`: Admin xé toàn bộ sổ nợ của Server.\n• `/set_tts #channel`: Ghim kênh text chuyên dụng để bot đọc voice.\n• `/clear_tts`: Hủy ghim kênh riêng (chỉ đọc trong chat phòng voice).\n• `/set_admin_log #channel`: Cài đặt kênh bí mật giám sát toàn bộ hoạt động.\n• `/set_confession #channel`: Cài đặt kênh riêng tiếp nhận thư nặc danh.\n• `/set_welcome #channel`: Cài đặt kênh chào mừng & tiễn thành viên.\n• `/set_autorole @role`: Tự động cấp vai trò cho người mới.\n• `/set_rule <nội_dung>`: Thêm nội quy riêng cho Server.",
             inline=False
         )
 

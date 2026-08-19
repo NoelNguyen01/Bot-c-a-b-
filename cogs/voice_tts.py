@@ -7,10 +7,31 @@ import asyncio
 import tempfile
 import os
 import re
+import json
 import logging
 import imageio_ffmpeg
+from cogs.admin_log import send_log_to_admin
 
 logger = logging.getLogger("VoiceTTS")
+
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+DATA_DIR = os.path.join(BASE_DIR, "data")
+CONFIG_FILE = os.path.join(DATA_DIR, "config.json")
+
+def load_config():
+    if not os.path.exists(CONFIG_FILE):
+        return {}
+    with open(CONFIG_FILE, "r", encoding="utf-8") as f:
+        try:
+            return json.load(f)
+        except json.JSONDecodeError:
+            return {}
+
+def save_config(data):
+    os.makedirs(DATA_DIR, exist_ok=True)
+    with open(CONFIG_FILE, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=4, ensure_ascii=False)
+
 
 # SIÊU BỘ TỪ ĐIỂN DỊCH VIẾT TẮT, TEENCODE & NÓI LÁI TỪ TỤC (180+ TỪ)
 VIETNAMESE_ABBREVIATIONS = [
@@ -347,13 +368,23 @@ class VoiceTTSCog(commands.Cog):
             return
 
         bot_channel = voice_client.channel
-        is_in_vc_chat = (message.channel.id == bot_channel.id)
+        guild_id = str(message.guild.id)
+        config = load_config()
+        custom_tts_channel_id = config.get(guild_id, {}).get("tts_channel_id")
 
-        if not is_in_vc_chat and isinstance(message.author, discord.Member):
-            if message.author.voice and message.author.voice.channel == bot_channel:
-                is_in_vc_chat = True
+        # KIỂM TRA ĐÚNG KÊNH ĐƯỢC PHÉP ĐỌC:
+        is_allowed = False
 
-        if is_in_vc_chat:
+        if custom_tts_channel_id:
+            # Nếu Admin đã ghim kênh riêng -> CHỈ ĐỌC TẠI KÊNH ĐÓ (hoặc trong chat của phòng voice)
+            if message.channel.id == int(custom_tts_channel_id) or message.channel.id == bot_channel.id:
+                is_allowed = True
+        else:
+            # Nếu chưa ghim kênh riêng -> CHỈ ĐỌC DUY NHẤT trong khung chat tích hợp của phòng voice!
+            if message.channel.id == bot_channel.id:
+                is_allowed = True
+
+        if is_allowed:
             raw_text = message.clean_content
             clean_text = clean_text_for_tts(raw_text)
             if not clean_text:
@@ -364,6 +395,62 @@ class VoiceTTSCog(commands.Cog):
 
             speech_text = f"{message.author.display_name} nói: {clean_text}"
             await self.tts_queue.put((message.guild.id, speech_text, voice_client))
+
+    # ================= CÀI ĐẶT KÊNH CHỈ ĐỊNH ĐỌC TTS =================
+    @app_commands.command(name="set_tts", description="Ghim kênh text chuyên dụng để bot đọc chat trong voice (Admin)")
+    @app_commands.default_permissions(administrator=True)
+    async def set_tts(self, interaction: discord.Interaction, channel: discord.abc.GuildChannel):
+        user_perms = interaction.user.guild_permissions
+        if not (user_perms.administrator or user_perms.manage_guild or user_perms.manage_channels):
+            await interaction.response.send_message("❌ Mày phải có quyền Quản trị viên (Admin) mới được dùng lệnh này!", ephemeral=True)
+            return
+
+        config = load_config()
+        guild_id = str(interaction.guild_id)
+        if guild_id not in config:
+            config[guild_id] = {}
+        config[guild_id]["tts_channel_id"] = channel.id
+        save_config(config)
+
+        await interaction.response.send_message(
+            f"✅ **Đã ghim kênh đọc TTS tại {channel.mention}!**\n"
+            f"👉 Từ giờ chị Google sẽ **CHỈ ĐỌC tin nhắn gõ trong {channel.mention}** (và chat của phòng voice), không đọc lung tung ở các kênh khác nữa!",
+            ephemeral=True
+        )
+
+        await send_log_to_admin(
+            interaction.guild,
+            title="⚙️ [CÀI ĐẶT] ĐỔI KÊNH ĐỌC TTS",
+            description=f"Admin {interaction.user.mention} đã ghim kênh đọc voice TTS sang {channel.mention}.",
+            color=discord.Color.gold()
+        )
+
+    @app_commands.command(name="clear_tts", description="Hủy ghim kênh riêng (Bot chỉ đọc trong chat của phòng voice)")
+    @app_commands.default_permissions(administrator=True)
+    async def clear_tts(self, interaction: discord.Interaction):
+        user_perms = interaction.user.guild_permissions
+        if not (user_perms.administrator or user_perms.manage_guild):
+            await interaction.response.send_message("❌ Mày phải có quyền Admin mới được dùng lệnh này!", ephemeral=True)
+            return
+
+        config = load_config()
+        guild_id = str(interaction.guild_id)
+        if guild_id in config and "tts_channel_id" in config[guild_id]:
+            del config[guild_id]["tts_channel_id"]
+            save_config(config)
+
+        await interaction.response.send_message("✅ Đã hủy ghim kênh riêng! Giờ bot chỉ đọc chữ gõ trong khung chat của chính phòng voice.", ephemeral=True)
+
+    @commands.command(name="set_tts")
+    @commands.has_permissions(administrator=True)
+    async def cmd_set_tts(self, ctx, channel: discord.TextChannel):
+        config = load_config()
+        guild_id = str(ctx.guild.id)
+        if guild_id not in config:
+            config[guild_id] = {}
+        config[guild_id]["tts_channel_id"] = channel.id
+        save_config(config)
+        await ctx.send(f"✅ Đã ghim kênh đọc TTS tại {channel.mention}! Bot sẽ chỉ đọc tin nhắn ở kênh này!")
 
     # ================= SLASH COMMANDS =================
     @app_commands.command(name="join", description="Gọi chị Google vào kênh voice và tự động đọc chat")
@@ -381,7 +468,7 @@ class VoiceTTSCog(commands.Cog):
         if voice_client and voice_client.is_connected():
             if voice_client.channel.id == voice_channel.id:
                 await interaction.response.send_message(
-                    f"🔊 Tao đang ở trong kênh **{voice_channel.name}** rồi! Cứ chat trong này tao tự động đọc hết!",
+                    f"🔊 Tao đang ở trong kênh **{voice_channel.name}** rồi! Cứ chat đúng kênh tao tự động đọc hết!",
                     ephemeral=True
                 )
                 return
@@ -394,7 +481,7 @@ class VoiceTTSCog(commands.Cog):
             title="🎙️ CHỊ GOOGLE ĐÃ VÀO PHÒNG VOICE! 🔊",
             description=f"✅ Đã kết nối vào **{voice_channel.name}**.\n\n"
                         f"✨ **Tự Động Đọc Chat (Auto-TTS):** `BẬT`\n"
-                        f"👉 Ai không bật mic chỉ cần **gõ chữ trong chat của phòng này**, chị Google sẽ tự động đọc thay bạn từng câu trôi chảy!",
+                        f"👉 Ai không bật mic chỉ cần **gõ chữ trong chat của phòng này** (hoặc kênh được Admin ghim bằng `/set_tts`), chị Google sẽ tự động đọc thay bạn!",
             color=discord.Color.green()
         )
         await interaction.response.send_message(embed=embed)
@@ -435,7 +522,7 @@ class VoiceTTSCog(commands.Cog):
             await voice_client.move_to(voice_channel)
         else:
             await voice_channel.connect()
-        await ctx.send(f"🔊 Chị Google đã vào phòng **{voice_channel.name}**! Ai câm mic cứ chat tao đọc hộ!")
+        await ctx.send(f"🔊 Chị Google đã vào phòng **{voice_channel.name}**! Ai câm mic cứ chat đúng kênh tao đọc hộ!")
 
     @commands.command(name="leave")
     async def cmd_leave(self, ctx):
