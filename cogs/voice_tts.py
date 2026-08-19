@@ -20,15 +20,118 @@ def get_ffmpeg_binary():
         return "ffmpeg"
 
 
+# TỪ ĐIỂN DỊCH VIẾT TẮT / TEENCODE TIẾNG VIỆT TOÀN DIỆN
+VIETNAMESE_ABBREVIATIONS = {
+    # Đại từ & xưng hô
+    r'\bt\b': 'tao',
+    r'\bm\b': 'mày',
+    r'\bng\b': 'người',
+    r'\bngừi\b': 'người',
+    r'\bae\b': 'anh em',
+    r'\bmn\b': 'mọi người',
+    r'\bmk\b': 'mình',
+    r'\bmik\b': 'mình',
+    r'\bthg\b': 'thằng',
+    r'\btk\b': 'thằng',
+    r'\bthk\b': 'thằng',
+    r'\bad\b': 'admin',
+    r'\bgv\b': 'giáo viên',
+    r'\bhs\b': 'học sinh',
+    r'\bcr\b': 'crush',
+
+    # Các từ viết tắt phổ biến nhất
+    r'\bk\b': 'không',
+    r'\bko\b': 'không',
+    r'\bkh\b': 'không',
+    r'\bkhong\b': 'không',
+    r'\bk0\b': 'không',
+    r'\bdc\b': 'được',
+    r'\bđc\b': 'được',
+    r'\bđk\b': 'được',
+    r'\br\b': 'rồi',
+    r'\broi\b': 'rồi',
+    r'\bchx\b': 'chưa',
+    r'\bj\b': 'gì',
+    r'\bv\b': 'vậy',
+    r'\bvaayj\b': 'vậy',
+    r'\bs\b': 'sao',
+    r'\bcx\b': 'cũng',
+    r'\bvs\b': 'với',
+    r'\bnx\b': 'nữa',
+    r'\bth\b': 'thôi',
+    r'\bthui\b': 'thôi',
+    r'\blm\b': 'làm',
+    r'\bns\b': 'nói',
+    r'\bbt\b': 'biết',
+    r'\bh\b': 'giờ',
+    r'\bbh\b': 'bây giờ',
+    r'\btrg\b': 'trong',
+    r'\btrog\b': 'trong',
+    r'\bnt\b': 'nhắn tin',
+    r'\bdr\b': 'đúng rồi',
+    r'\bđr\b': 'đúng rồi',
+    r'\buk\b': 'ừ',
+    r'\buh\b': 'ừ',
+    r'\bum\b': 'ừ',
+    r'\bkp\b': 'không phải',
+    r'\bcb\b': 'chuẩn bị',
+    r'\bok\b': 'ô kê',
+    r'\boke\b': 'ô kê',
+    r'\boki\b': 'ô kê',
+    r'\bacc\b': 'tài khoản',
+    r'\bpass\b': 'mật khẩu',
+    r'\bstt\b': 'số thứ tự',
+    r'\bbtvn\b': 'bài tập về nhà',
+    r'\bhw\b': 'bài tập về nhà',
+    r'\btkb\b': 'thời khóa biểu',
+
+    # Mạng xã hội & công nghệ
+    r'\bsv\b': 'máy chủ',
+    r'\bvc\b': 'phòng thoại',
+    r'\bmic\b': 'míc',
+    r'\bcam\b': 'cam-mê-ra',
+    r'\bfb\b': 'phây búc',
+    r'\big\b': 'in-sta-gram',
+    r'\bytb\b': 'diu túp',
+    r'\btt\b': 'tóp tóp',
+    r'\btiktok\b': 'tóp tóp',
+    r'\bdis\b': 'đít cọt',
+    r'\bdiscord\b': 'đít cọt',
+
+    # Tiếng lóng & cảm thán vui
+    r'\bclgt\b': 'cái lề gì thốn',
+    r'\bvl\b': 'vãi lúa',
+    r'\bvcl\b': 'vãi cả lúa',
+    r'\bvkl\b': 'vãi cả lúa',
+    r'\bvch\b': 'vãi chưởng',
+    r'\bvcc\b': 'vãi cà chua',
+    r'\bdm\b': 'đờ mờ',
+    r'\bđm\b': 'đờ mờ',
+    r'\bdcm\b': 'đờ cờ mờ',
+    r'\bđcm\b': 'đờ cờ mờ',
+    r'\bdmm\b': 'đờ mờ mày',
+    r'\bđmm\b': 'đờ mờ mày',
+    r'\bcl\b': 'cờ lờ',
+    r'\bcc\b': 'cục cứt',
+    r'\bcmnr\b': 'chuẩn mẹ nó rồi',
+    r'\bvcb\b': 'vãi cả bưởi',
+}
+
+
 def clean_text_for_tts(text: str) -> str:
-    """Lọc và làm sạch văn bản trước khi đọc: bỏ link, emoji rác, giới hạn ký tự"""
-    # 1. Bỏ link URL (http/https)
+    """Lọc, dịch viết tắt và làm sạch văn bản trước khi đọc"""
+    # 1. Bỏ link URL
     text = re.sub(r'https?://\S+|www\.\S+', 'gửi một đường link', text)
-    # 2. Bỏ mention <@123456> hoặc <#123456>
+    # 2. Bỏ mention
     text = re.sub(r'<@!?\d+>', 'ai đó', text)
     text = re.sub(r'<#\d+>', 'kênh', text)
     text = re.sub(r'<@&\d+>', 'vai trò', text)
-    # 3. Giới hạn tối đa 200 ký tự để chống troll spam văn mẫu
+
+    # 3. TỰ ĐỘNG DỊCH TỪ VIẾT TẮT / TEENCODE SANG TIẾNG VIỆT CHUẨN
+    for pattern, replacement in VIETNAMESE_ABBREVIATIONS.items():
+        text = re.sub(pattern, replacement, text, flags=re.IGNORECASE)
+
+    # 4. Giới hạn tối đa 200 ký tự chống spam
     if len(text) > 200:
         text = text[:200] + "... dài quá lười đọc!"
     return text.strip()
@@ -38,11 +141,8 @@ class VoiceTTS(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.ffmpeg_bin = get_ffmpeg_binary()
-        # Hàng đợi âm thanh theo Guild: { guild_id: asyncio.Queue }
         self.queues = {}
-        # Task xử lý hàng đợi theo Guild: { guild_id: asyncio.Task }
         self.worker_tasks = {}
-        # Cài đặt Auto-TTS theo Guild: { guild_id: True/False }
         self.autotts_enabled = {}
 
     def get_queue(self, guild_id: int) -> asyncio.Queue:
@@ -57,13 +157,11 @@ class VoiceTTS(commands.Cog):
             self.worker_tasks[guild_id] = asyncio.create_task(self.queue_worker(guild))
 
     async def queue_worker(self, guild: discord.Guild):
-        """Worker chạy nền liên tục lấy tin nhắn trong hàng đợi và đọc lần lượt"""
         guild_id = guild.id
         queue = self.get_queue(guild_id)
 
         while True:
             try:
-                # Đợi có tin nhắn trong hàng đợi
                 item = await queue.get()
                 text_to_read, original_channel = item
 
@@ -72,21 +170,17 @@ class VoiceTTS(commands.Cog):
                     queue.task_done()
                     continue
 
-                # Tạo file MP3 bằng edge-tts
                 file_name = f"/tmp/tts_{uuid.uuid4().hex}.mp3"
                 try:
                     communicate = edge_tts.Communicate(text_to_read, "vi-VN-HoaiMyNeural")
                     await communicate.save(file_name)
 
-                    # Đợi âm thanh trước phát xong nếu có
                     while vc.is_playing() or vc.is_paused():
                         await asyncio.sleep(0.2)
 
-                    # Phát âm thanh vào Voice
                     source = discord.FFmpegPCMAudio(file_name, executable=self.ffmpeg_bin)
                     vc.play(source)
 
-                    # Đợi phát hết âm thanh này
                     while vc.is_playing():
                         await asyncio.sleep(0.2)
 
@@ -114,32 +208,24 @@ class VoiceTTS(commands.Cog):
                 return vc
         return None
 
-    # ================= LẮNG NGHE TIN NHẮN TỰ ĐỘNG ĐỌC (AUTO-TTS) =================
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
-        # Bỏ qua tin nhắn từ Bot hoặc DM
         if message.author.bot or not message.guild:
             return
 
         guild = message.guild
         vc = guild.voice_client
 
-        # Chỉ hoạt động nếu bot đang trong Voice
         if not vc or not vc.is_connected():
             return
 
-        # Kiểm tra tính năng Auto-TTS có đang bật không (mặc định là Bật)
         if not self.autotts_enabled.get(guild.id, True):
             return
 
-        # Bỏ qua các lệnh điều khiển (bắt đầu bằng !, /, $, .)
         content = message.content.strip()
         if not content or content.startswith(("!", "/", "$", ".", "?")):
             return
 
-        # ĐIỀU KIỆN TỰ ĐỘNG ĐỌC:
-        # 1. Tin nhắn được gửi TRONG KÊNH CHAT CỦA PHÒNG VOICE MÀ BOT ĐANG Ở
-        # HOẶC 2. Người gửi đang ở cùng phòng Voice với Bot
         is_in_vc_text = (isinstance(message.channel, discord.VoiceChannel) and message.channel.id == vc.channel.id)
         user_in_same_vc = (hasattr(message.author, "voice") and message.author.voice and message.author.voice.channel and message.author.voice.channel.id == vc.channel.id)
 
@@ -148,15 +234,11 @@ class VoiceTTS(commands.Cog):
             if not clean_msg:
                 return
 
-            # Định dạng giọng đọc: "Tên nói: nội dung"
             text_to_speak = f"{message.author.display_name} nói: {clean_msg}"
-            
-            # Đẩy vào hàng đợi và kích hoạt worker
             queue = self.get_queue(guild.id)
             await queue.put((text_to_speak, message.channel))
             self.ensure_worker(guild)
 
-    # ================= CÁC LỆNH ĐIỀU KHIỂN =================
     @app_commands.command(name="join", description="Mời chị Google vào phòng voice & Tự động đọc tin nhắn chat")
     async def join(self, interaction: discord.Interaction):
         await interaction.response.defer()
@@ -187,7 +269,8 @@ class VoiceTTS(commands.Cog):
                     f"🔊 Đã kết nối vào phòng **{channel.name}**.\n\n"
                     "💡 **TÍNH NĂNG TỰ ĐỘNG ĐỌC (AUTO-TTS):**\n"
                     "👉 Anh em câm mic chỉ cần **nhắn tin chữ bình thường** vào kênh chat phòng Voice này, "
-                    "chị Google sẽ **tự động phát giọng đọc vào mic** mà không cần gõ lệnh gì cả!\n\n"
+                    "chị Google sẽ **tự động phát giọng đọc vào mic** mà không cần gõ lệnh gì cả!\n"
+                    "*(Đã hỗ trợ dịch hơn 60 từ viết tắt: k, ko, dc, t, m, v, r, clgt, vl...)*\n\n"
                     "*(Dùng `/leave` để đuổi chị đi, hoặc `/autotts tat` nếu muốn tắt tự đọc)*"
                 ),
                 color=discord.Color.green()
@@ -207,7 +290,6 @@ class VoiceTTS(commands.Cog):
             return
 
         guild_id = interaction.guild_id
-        # Hủy worker và xóa hàng đợi
         if guild_id in self.worker_tasks:
             self.worker_tasks[guild_id].cancel()
             del self.worker_tasks[guild_id]
@@ -265,7 +347,6 @@ class VoiceTTS(commands.Cog):
 
         await interaction.followup.send(f"🗣️ **Đã xếp hàng đọc:** {clean_msg}")
 
-    # ================= LỆNH NHANH BẰNG DẤU CHẤM THAN (!) =================
     @commands.command(name="join")
     async def cmd_join(self, ctx):
         channel = self.get_user_voice_channel(ctx.author, ctx.guild)
