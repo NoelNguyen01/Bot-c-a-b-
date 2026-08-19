@@ -11,24 +11,21 @@ from discord import app_commands
 from discord.ext import commands
 from dotenv import load_dotenv
 
-# Thiết lập logging cho bot
 logging.basicConfig(
     level=logging.INFO,
     format="[%(asctime)s] [%(levelname)s] %(name)s: %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S",
 )
-logger = logging.getLogger("ClassTrollBot")
+logger = logging.getLogger("TrollBot")
 
-# Nạp các biến môi trường từ tệp .env
 load_dotenv()
 TOKEN = os.getenv("DISCORD_TOKEN")
 
 
-# Web server nhỏ để tương thích 100% với Render / Koyeb Web Service
 async def start_keep_alive_web():
     port = int(os.getenv("PORT", 8080))
     app = aiohttp.web.Application()
-    app.router.add_get("/", lambda r: aiohttp.web.Response(text="🤡 Bot Chúa Tể Cà Khịa đang hoạt động 24/7!"))
+    app.router.add_get("/", lambda r: aiohttp.web.Response(text="Bot đang hoạt động 24/7!"))
     runner = aiohttp.web.AppRunner(app)
     await runner.setup()
     site = aiohttp.web.TCPSite(runner, "0.0.0.0", port)
@@ -37,15 +34,14 @@ async def start_keep_alive_web():
 
 
 class TrollBot(commands.Bot):
-    """Lớp Bot chính kế thừa từ commands.Bot của discord.py 2.x"""
-
     def __init__(self) -> None:
         intents = discord.Intents.default()
         intents.members = True
         intents.message_content = True
-        
+        intents.voice_states = True
+
         super().__init__(
-            command_prefix="!",
+            command_prefix=commands.when_mentioned_or("!"),
             intents=intents,
             help_command=None,
             status=discord.Status.online,
@@ -53,14 +49,13 @@ class TrollBot(commands.Bot):
         )
 
     async def setup_hook(self) -> None:
-        """Tự động tải tất cả các cogs trong thư mục cogs/"""
         if os.getenv("PORT") or os.getenv("RENDER"):
             asyncio.create_task(start_keep_alive_web())
 
         cogs_dir = Path(__file__).parent / "cogs"
         if cogs_dir.exists() and cogs_dir.is_dir():
             for file in cogs_dir.glob("*.py"):
-                if file.stem not in ["__init__", "quotes_data"]:
+                if file.stem not in ["__init__", "quotes_data", "admin_log"]:
                     cog_name = f"cogs.{file.stem}"
                     try:
                         await self.load_extension(cog_name)
@@ -73,10 +68,9 @@ class TrollBot(commands.Bot):
     async def on_tree_error(
         self, interaction: discord.Interaction, error: app_commands.AppCommandError
     ) -> None:
-        """Xử lý lỗi toàn cục cho các Slash Commands"""
         if isinstance(error, app_commands.CommandOnCooldown):
             retry_after = error.retry_after
-            msg = f"Từ từ thôi con lợn, spam lắm Discord nó khóa mồm tao bây giờ! Đợi {retry_after:.0f} giây nữa đi."
+            msg = f"⏳ Từ từ thôi con lợn, spam lắm Discord nó khóa mồm tao bây giờ! Đợi **{retry_after:.0f} giây** nữa đi."
             if interaction.response.is_done():
                 await interaction.followup.send(msg, ephemeral=True)
             else:
@@ -84,7 +78,7 @@ class TrollBot(commands.Bot):
             return
 
         if isinstance(error, app_commands.MissingPermissions):
-            msg = "❌ Mày không có quyền để dùng lệnh này nha!"
+            msg = "❌ Mày không có quyền Quản trị viên (Admin) để dùng lệnh này nha!"
             if interaction.response.is_done():
                 await interaction.followup.send(msg, ephemeral=True)
             else:
@@ -92,7 +86,7 @@ class TrollBot(commands.Bot):
             return
 
         command_name = interaction.command.name if interaction.command else "Không rõ"
-        logger.error(f"Lỗi khi thực thi lệnh /{command_name}: {error}", exc_info=True)
+        logger.error(f"Lỗi lệnh /{command_name}: {error}", exc_info=True)
         error_msg = f"Có lỗi xảy ra: {error}"
         if interaction.response.is_done():
             await interaction.followup.send(error_msg, ephemeral=True)
@@ -100,9 +94,7 @@ class TrollBot(commands.Bot):
             await interaction.response.send_message(error_msg, ephemeral=True)
 
     async def on_ready(self) -> None:
-        """Sự kiện kích hoạt khi bot sẵn sàng hoạt động"""
         logger.info(f"Bot đã đăng nhập thành công: {self.user} (ID: {self.user.id})")
-
         try:
             await self.change_presence(
                 status=discord.Status.online,
@@ -111,21 +103,19 @@ class TrollBot(commands.Bot):
         except Exception:
             pass
 
-        # XÓA TOÀN BỘ LỆNH CŨ Ở GUILD ĐỂ HẾT BỊ DUPLICATE TRÊN DISCORD
+        # Ép đồng bộ tức thì vào từng Server để ghi đè mọi lệnh cũ
         for guild in self.guilds:
             try:
-                self.tree.clear_commands(guild=guild)
-                await self.tree.sync(guild=guild)
-                logger.info(f"🧹 Đã xóa sạch lệnh rác cho Server: {guild.name}")
+                self.tree.copy_global_to(guild=guild)
+                synced_guild = await self.tree.sync(guild=guild)
+                logger.info(f"⚡ Đã đồng bộ tức thì {len(synced_guild)} lệnh chuẩn cho Server: {guild.name}")
             except Exception as e:
-                logger.error(f"Lỗi clear guild {guild.name}: {e}")
+                logger.error(f"Lỗi sync guild {guild.name}: {e}")
 
-        # Đồng bộ danh sách Global sạch sẽ duy nhất
         try:
-            synced = await self.tree.sync()
-            logger.info(f"⚡ Đã đồng bộ {len(synced)} lệnh Global sạch sẽ 100%!")
-        except Exception as e:
-            logger.error(f"Lỗi sync global: {e}")
+            await self.tree.sync()
+        except Exception:
+            pass
 
         logger.info(f"Đang kết nối tới {len(self.guilds)} máy chủ Discord.")
         print("\n" + "="*50)
@@ -138,20 +128,20 @@ bot = TrollBot()
 @bot.command(name="sync")
 @commands.has_permissions(administrator=True)
 async def manual_sync(ctx):
-    """Lệnh !sync cho Admin để xóa sạch duplicate và làm sạch danh sách lệnh"""
+    """Lệnh !sync cho Admin để ghi đè và làm sạch danh sách lệnh ngay tức khắc"""
     async with ctx.typing():
         try:
-            bot.tree.clear_commands(guild=ctx.guild)
-            await bot.tree.sync(guild=ctx.guild)
-            synced = await bot.tree.sync()
-            await ctx.send(f"🧹 **ĐÃ XÓA SẠCH CÁC LỆNH RÁC / TRÙNG LẶP (DUPLICATE)!** 🎉\n⚡ Danh sách chuẩn hiện có đúng **{len(synced)} lệnh duy nhất**.\n👉 *Hãy nhấn `Ctrl + R` (hoặc khởi động lại app Discord) để làm mới bảng gợi ý!*")
+            bot.tree.copy_global_to(guild=ctx.guild)
+            synced = await bot.tree.sync(guild=ctx.guild)
+            await bot.tree.sync()
+            await ctx.send(f"🧹 **ĐÃ XÓA SẠCH MỌI LỆNH CŨ & ĐỒNG BỘ TỨC THÌ {len(synced)} LỆNH CHUẨN!** 🎉\n👉 *Nhấn `Ctrl + R` (hoặc khởi động lại Discord) để thấy ngay danh sách mới!*")
         except Exception as e:
             await ctx.send(f"❌ Lỗi khi sync: `{e}`")
 
 
 async def main() -> None:
     if not TOKEN:
-        logger.critical("Không tìm thấy DISCORD_TOKEN trong file .env! Vui lòng cấu hình token trước khi khởi chạy.")
+        logger.critical("Không tìm thấy DISCORD_TOKEN trong file .env!")
         sys.exit(1)
 
     async with bot:
