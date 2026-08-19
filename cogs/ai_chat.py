@@ -11,27 +11,28 @@ from typing import Optional
 
 logger = logging.getLogger("AIChat")
 
+# System prompt huấn luyện tính cách bựa, đanh đá, cực kỳ ngắn gọn và độc miệng
 SYSTEM_INSTRUCTION = """
-Bạn là 'Culi của Ngựa' - chú bot AI kiêm Chúa Tể Cà Khịa và Học Bá của một server Discord lớp học Việt Nam.
-Tính cách và phong cách trả lời của bạn:
-1. Xưng hô: Bạn có thể tự xưng là 'tao', 'chị Google', 'culi' hoặc 'bổn tọa', gọi người dùng là 'mày', 'ông cháu', 'đại ca', 'người đẹp' một cách thân mật, tự nhiên như bạn bè cùng lớp.
-2. Phong cách: Hài hước, thông minh, hơi bựa một tí, dùng tiếng lóng / meme giới trẻ (như simp, lốp xe, hề chúa, dắt mũi, đóng quỹ lớp, deadline...).
-3. Trợ giúp học tập: Khi được hỏi về bài tập (Toán, Lý, Hóa, Văn, Anh, Lập trình, Sử, Địa...), bạn phải giải thích cực kỳ chuẩn xác, rõ ràng, dễ hiểu từng bước nhưng vẫn lồng ghép sự dí dỏm.
-4. Làm thơ / Cà khịa: Khi được yêu cầu làm thơ hoặc troll ai đó, hãy làm những bài thơ lục bát hoặc văn mẫu cà khịa siêu cay nhưng mang tính giải trí lành mạnh.
-5. Ngắn gọn & Súc tích: Trả lời đúng trọng tâm, định dạng markdown đẹp mắt (in đậm, danh sách gạch đầu dòng, code block nếu là lập trình).
+Bạn là 'Culi của Ngựa' - chú bot AI cà khịa độc miệng, hài hước và bựa nhất server Discord lớp học.
+
+QUY TẮC SỐNG CÒN BẮT BUỘC:
+1. CỰC KỲ NGẮN GỌN: Chỉ trả lời đúng từ 1 đến 2 câu ngắn (tối đa 3 câu). TUYỆT ĐỐI KHÔNG VIẾT VĂN TẾ, KHÔNG GIẢNG GIẢI LAN MAN.
+2. PHONG CÁCH: Hài hước, bựa, xéo xắt, châm chọc đanh thép như thằng bạn thân mất nết trong lớp. Xưng hô tự nhiên: tao - mày, ông cháu, đại ca.
+3. TIẾNG LÓNG & MEME: Tự nhiên dùng tiếng lóng (simp lỏ, lốp dự phòng, chú hề 🤡, quỵt nợ, sủi, não để trưng cho đẹp...).
+4. ĐỐI ĐÁP CHÍ MẠNG: Thọc đúng tim đen, phán câu nào thốn câu đó khiến đối phương vừa cay vừa cười rách mép.
+5. HỎI BÀI TẬP: Bắn ngay đáp án/kết quả chuẩn xác + 1 câu khịa ngắn gọn.
 """
 
-# Chỉ dùng các model Flash miễn phí (không dùng model Pro để tránh lỗi giới hạn Quota)
+# Ưu tiên các model siêu tốc độ và ổn định nhất
 FLASH_MODELS = [
-    "gemini-3.7-flash",
-    "gemini-flash-latest",
-    "gemini-3.5-flash",
     "gemini-3.1-flash-lite",
-    "gemini-3.5-flash-lite"
+    "gemini-3.5-flash-lite",
+    "gemini-3.7-flash",
+    "gemini-3.5-flash",
+    "gemini-flash-latest"
 ]
 
 def split_text(text: str, max_length: int = 1900) -> list[str]:
-    """Chia nhỏ văn bản nếu vượt quá giới hạn 2000 ký tự của Discord"""
     if len(text) <= max_length:
         return [text]
     
@@ -66,9 +67,9 @@ class AIChatCog(commands.Cog):
         user_message = f"[{user_name}]: {prompt}"
         history.append({"role": "user", "parts": [{"text": user_message}]})
 
-        # Giữ tối đa 8 tin nhắn gần nhất để bộ nhớ luôn nhẹ và nhanh
-        if len(history) > 8:
-            history = history[-8:]
+        # Giữ 6 tin nhắn gần nhất để bộ nhớ luôn gọn gàng
+        if len(history) > 6:
+            history = history[-6:]
             self.channel_history[channel_id] = history
 
         payload = {
@@ -83,7 +84,7 @@ class AIChatCog(commands.Cog):
             url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
             try:
                 async with aiohttp.ClientSession() as session:
-                    async with session.post(url, json=payload, timeout=aiohttp.ClientTimeout(total=20)) as response:
+                    async with session.post(url, json=payload, timeout=aiohttp.ClientTimeout(total=15)) as response:
                         if response.status == 200:
                             data = await response.json()
                             candidates = data.get("candidates", [])
@@ -96,15 +97,15 @@ class AIChatCog(commands.Cog):
                                         return reply_text
                         else:
                             error_text = await response.text()
-                            logger.warning(f"Model {model} lỗi {response.status}: {error_text[:150]}")
-                            last_error = f"Model {model} - Mã {response.status}"
+                            logger.warning(f"Model {model} lỗi {response.status}: {error_text[:120]}")
+                            last_error = f"{model} ({response.status})"
             except Exception as e:
                 logger.error(f"Lỗi kết nối {model}: {e}")
                 last_error = str(e)
 
         if channel_id in self.channel_history:
             del self.channel_history[channel_id]
-        return f"😅 Não tao vừa bị đơ một tí. Mày thử hỏi lại một câu khác xem nào! 🤡"
+        return "Nghĩ nhiều quá lag não rồi, tí hỏi lại nha con lợn! 🤡"
 
     # ================= LẮNG NGHE TIN NHẮN @BOT HOẶC REPLY =================
     @commands.Cog.listener()
@@ -129,7 +130,7 @@ class AIChatCog(commands.Cog):
         if is_mentioned or is_reply_to_bot:
             clean_content = message.clean_content.replace(f"@{self.bot.user.name}", "").strip()
             if not clean_content:
-                await message.reply("Ơi cái gì đấy ông cháu? Tag tao mà không hỏi gì à? 🤡")
+                await message.reply("Ơi cái gì đấy ông cháu? Tag tao mà không nói gì à? 🤡")
                 return
 
             async with message.channel.typing():
@@ -152,7 +153,7 @@ class AIChatCog(commands.Cog):
 
         for i, chunk in enumerate(chunks):
             if i == 0:
-                await interaction.followup.send(f"**❓ Bạn hỏi:** {cau_hoi}\n\n🤖 **Culi AI:**\n{chunk}")
+                await interaction.followup.send(f"**❓ {interaction.user.display_name}:** {cau_hoi}\n🤖 **Culi:** {chunk}")
             else:
                 if interaction.channel:
                     await interaction.channel.send(chunk)
