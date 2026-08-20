@@ -586,27 +586,48 @@ class TrollCog(commands.Cog):
         )
         await interaction.response.send_message(embed=embed)
 
-    @app_commands.command(name="joker", description="Triết lý thằng hề cho một người bạn")
+    @app_commands.command(name="joker", description="Trao tặng danh hiệu Hề Chúa và triết lý sâu cay cho một người bạn")
     async def joker(self, interaction: discord.Interaction, user: discord.Member, ly_do: str):
         quotes = [
-            "Họ cười tôi vì tôi không giống họ, tôi cười họ vì họ tưởng tôi quan tâm... còn mày thì chỉ là thằng hề.",
-            "Người ta có người yêu đưa đón, còn mày ngồi đây xem story người ta đi chơi với thằng khác. Hề chúa 🤡!",
-            "Tình yêu như một ván bài, và mày là con joker bị vứt đi ngay từ đầu.",
-            "Mày tưởng mày là nam chính ngôn tình? Không, mày chỉ là nhân vật quần chúng vô danh làm nền cho người ta 🤡.",
-            "Mày đóng vai chú hề để làm cô ấy vui, còn cô ấy vui với thằng khác.",
-            "Hề không chỉ là một cái nghề, với mày nó là hệ tư tưởng rồi.",
-            "Có những lúc tao muốn rơi nước mắt, nhưng nhìn bộ mặt hề của mày làm tao lại buồn cười 🤡.",
-            "Xin lỗi tao không cố ý cười đâu, tại cái mặt mày tấu hài quá.",
-            "Joker có Harley Quinn, còn mày chỉ có cái màn hình điện thoại mờ ảo thôi 🤡."
+            "🎪 Rạp Xiếc Trung Ương gọi điện mời mày về làm Giám Đốc Danh Dự kìa, diễn xuất sắc quá hề chúa ơi 🤡!",
+            "📱 Người ta bận nhắn tin 'Em ngủ ngon', còn mày ngồi canh xem người ta 'Đang hoạt động' với ai. Chúa tể canh miếu, đại sứ F5 story 🤡!",
+            "🛵 12h đêm phi xe 20 cây số qua mua trà sữa vì crush 'Đang đói', tới nơi thấy người yêu nó ra nhận hộ. Đỉnh cao của sự cống hiến 🤡!",
+            "🎭 Cuộc đời là một vở kịch lớn, người ta là đạo diễn diễn viên chính, còn mày là thằng hề đứng ngoài cổng phát tờ rơi 🤡.",
+            "💄 Mặt mày không cần đánh phấn trắng hay bôi son đỏ đâu, cái bản mặt tự nhiên đã toát lên thần thái hề chúa thượng đẳng rồi 🎪.",
+            "👑 Người ta thả tim story dạo để giữ tương tác, mày tưởng người ta bật đèn xanh nên chuẩn bị sẵn cả tên đặt cho con. Thức tỉnh đi ông cháu 🤡!",
+            "🩸 Joker nhảy múa trên cầu thang gác lại nỗi đau, còn mày nhảy cẫng lên ăn mừng khi crush 'Đã xem' sau 3 ngày bặt vô âm tín 🤡.",
+            "🪞 Nhìn vào gương đi, Batman nhìn vào thấy kẻ thù, còn mày nhìn vào gương thấy một Cây Hài Nhân Dân chưa được trao Huân Chương 🤡.",
+            "🤡 Người ta bảo mày 'Anh rất tốt nhưng em rất tiếc', dịch chuẩn nghĩa đen ra là: 'Mày tốt thì làm culi dắt xe hộ tao nhé'!",
+            "💸 Tiền mày nạp game, quà mày mua tặng gái, cuối cùng gái gọi thằng khác là 'Chồng iu'. Bằng khen Chiến Sĩ Simp Quả Cảm trao tặng cho mày 🎖️🤡.",
+            "🎪 Đừng buồn vì người ta không chọn mày, trong rạp xiếc thì chú hề chỉ để mua vui chứ ai rảnh cưới chú hề bao giờ 🤡.",
+            "🍿 Mày thức đến 2h sáng canh tin nhắn, người ta thức đến 2h sáng để nhắn tin với người yêu nó. Hoàn cảnh tương phản nghệ thuật vãi chưởng 🤡.",
+            "🚗 Người ta ngồi xế hộp uống rượu vang, mày đội mưa ngồi Wave cùi xem story người ta check-in. Thơ mộng đến rơi nước mắt 🤡!",
+            "💊 Uống viên thuốc an thần đi con mồi, người ta 'Seen' tin nhắn từ hôm qua mà mày vẫn ngây thơ nghĩ người ta đang bận ôn thi 🤡.",
+            "🎪 Mày tưởng mày là Joker phản diện DC? Không, mày là chú hề bán bóng bay dạo ở cổng công viên nước 🤡.",
+            "💔 Người ta coi mày là trò đùa, còn mày lại nhiệt tình biến mình thành nguyên một gánh xiếc lưu động. Quá chuyên nghiệp 🎪!",
+            "👑 Phong tặng danh hiệu: 'Đại sứ thương hiệu Michelin - Chiến thần trực đêm - Chúa tể ngắm dấu Chấm Xanh Messenger' 🤡!",
+            "🤡 Tình yêu của mày sáng như ngọn đèn pha, tiếc là người ta rút phích cắm cmnr!",
+            "🎭 Họ cười tôi vì tôi là Joker, tôi cười họ vì họ tưởng tôi quan tâm... nhưng nhìn mày tao cười vì mày quá phế 🤡."
         ]
         
+        joker_titles = [
+            "🤡 HỆ TƯ TƯỞNG HỀ CHÚA THƯỢNG ĐẲNG 🎪",
+            "🎪 VINH DANH NGHỆ SĨ ƯU TÚ RẠP XIẾC 🤡",
+            "🎭 BẢNG PHONG THẦN JOKER HỌC ĐƯỜNG 🎴",
+            "🃏 DIỄN VIÊN HÀI ĐỘC THOẠI XUẤT SẮC 🤡"
+        ]
+
         embed = discord.Embed(
-            title="🤡 Hệ tư tưởng Joker",
-            description=f"Gửi tặng {user.mention} vì lý do: **{ly_do}**\n\n*{random.choice(quotes)}*",
-            color=discord.Color.from_rgb(128, 0, 128)
+            title=random.choice(joker_titles),
+            description=f"🎯 **Đối tượng được vinh danh:** {user.mention}\n"
+                        f"📌 **Lý do lập rạp xiếc:** *\"{ly_do}\"*\n\n"
+                        f"💬 **Văn mẫu Joker thấm từng tế bào:**\n"
+                        f"> *\"{random.choice(quotes)}\"*",
+            color=discord.Color.from_rgb(148, 0, 211)
         )
         embed.set_thumbnail(url=CLOWN_ICON_URL)
-        await interaction.response.send_message(content=user.mention, embed=embed)
+        embed.set_footer(text="Gõ /joker @user <lý do> để trao tặng vương miện hề chúa!")
+        await interaction.response.send_message(content=f"🎪 Reng reng! Đã trao vương miện hề cho {user.mention}!", embed=embed)
 
     @app_commands.command(name="nemda", description="Ném đá giấu tay / Gửi tâm sự nặc danh (Bí mật 100%)")
     async def nemda(self, interaction: discord.Interaction):
