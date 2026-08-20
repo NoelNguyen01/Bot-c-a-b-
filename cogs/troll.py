@@ -7,6 +7,7 @@ import os
 import random
 import time
 import asyncio
+import aiohttp
 from typing import Optional
 from cogs.admin_log import send_log_to_admin
 from cogs.quotes_data import SPAM_TAG_PREFIXES
@@ -36,6 +37,91 @@ def save_json(filepath, data):
     os.makedirs(DATA_DIR, exist_ok=True)
     with open(filepath, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=4, ensure_ascii=False)
+
+
+# ================= HỆ THỐNG AI & PHÂN TÍCH NGỮ CẢNH TẠO VĂN MẪU JOKER =================
+async def generate_smart_joker_roast(user_name: str, ly_do: str) -> str:
+    """Tự động phân tích nội dung lý do do user nhập vào để tạo văn mẫu Joker sát thương nhất"""
+    api_key = os.getenv("GEMINI_API_KEY")
+    if api_key:
+        prompt_sys = (
+            "Bạn là 'Culi của Ngựa' — Máy tạo văn mẫu Joker châm biếm sâu cay đỉnh cao phong cách Gen Z. "
+            "Nhiệm vụ: Phân tích kỹ nội dung lý do mà người dùng nhập vào, sau đó sáng tạo một câu châm biếm thằng hề / Joker roast cực độc miệng, xéo xắt, sát thương cực cao, ĐÁNH TRÚNG VÀO NỘI DUNG ĐÓ. "
+            "Yêu cầu: Viết đúng 1 đến 2 câu ngắn gọn, ngôn ngữ siêu bựa, kèm emoji hề 🤡🎪, không dài dòng, không đạo lý chung chung."
+        )
+        payload = {
+            "systemInstruction": {"parts": [{"text": prompt_sys}]},
+            "contents": [{"role": "user", "parts": [{"text": f"Thành viên bị gán mác hề: {user_name}. Lý do bị troll: {ly_do}"}]}]
+        }
+        for model in ["gemini-3.1-flash-lite", "gemini-3.5-flash-lite", "gemini-flash-latest"]:
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
+            try:
+                async with aiohttp.ClientSession() as session:
+                    async with session.post(url, json=payload, timeout=aiohttp.ClientTimeout(total=5)) as response:
+                        if response.status == 200:
+                            data = await response.json()
+                            candidates = data.get("candidates", [])
+                            if candidates:
+                                text = candidates[0].get("content", {}).get("parts", [{}])[0].get("text", "").strip()
+                                if text:
+                                    return text
+            except Exception:
+                pass
+
+    # ================= SMART CONTEXTUAL KEYWORD CLASSIFIER (FALLBACK) =================
+    ly_do_lower = ly_do.lower()
+
+    # 1. Simp / Tình yêu / Crush / Ny / Gái / Trai / Độc thân / Bồ / Cưới / Lụy
+    if any(k in ly_do_lower for k in ["crush", "gái", "trai", "simp", "yêu", "ny", "bồ", "người yêu", "lụy", "chia tay", "cưới", "mê", "thích", "tỏ tình"]):
+        roasts = [
+            f"Trời sinh voi trời sinh cỏ, trời sinh ra mày làm lốp xe Michelin cho người ta vì cái thói '{ly_do}'. Cống hiến cả tuổi xuân đổi lấy chữ 'Đã xem' 🛞🤡.",
+            f"Người ta bận nhắn 'Ngủ ngon' với bồ nó, còn mày vì '{ly_do}' mà thức đến 2h sáng ngắm dấu chấm xanh. Rạp xiếc vinh danh sự hy sinh của mày 🎪🤡!",
+            f"12h đêm phi xe 20km mua trà sữa vì crush than đói, tới nơi thấy người yêu nó ra nhận hộ. Tất cả cũng chỉ tại cái tật '{ly_do}' 🤡🛵.",
+            f"Mày tưởng mày là nam chính ngôn tình? Không, vì '{ly_do}' mày chỉ là culi dắt xe hộ tình địch thôi con mồi à 🤡."
+        ]
+    # 2. Tiền bạc / Nợ / Vay / Giàu / Nghèo / Đòi nợ / Lương / Bần / Hết tiền
+    elif any(k in ly_do_lower for k in ["tiền", "nợ", "vay", "nghèo", "rách", "lương", "mượn", "đòi", "bank", "ví", "kinh tế", "đói"]):
+        roasts = [
+            f"Tiền trong ví thì rách như xơ mướp mà cũng bày đặt '{ly_do}'. Thằng hề này không những nghèo mà còn đam mê tấu hài 💸🤡.",
+            f"Nợ ngập đầu không lo trả mà còn ngồi đây tấu hài vì '{ly_do}'. Về rạp xiếc mua vui kiếm tiền nộp phạt đi con 🎪🤡!",
+            f"Số dư tài khoản 0 đồng nhưng độ tự tin thì 10 tỷ khi dám '{ly_do}'. Đỉnh cao của sự ảo giác tài chính 🤡💳."
+        ]
+    # 3. Game / Rank / Bóp team / Feed / AFK / Liên quân / Valorant / CSGO / Tốc chiến
+    elif any(k in ly_do_lower for k in ["game", "rank", "feed", "afk", "bóp", "liên quân", "valorant", "csgo", "tốc chiến", "lol", "lmht", "bắn", "chơi"]):
+        roasts = [
+            f"KDA thì 0/20, tay bấm chiêu vào không khí mà mồm gáy khét lẹt do '{ly_do}'. Chúa tể bóp team, đại sứ kéo rank xuống đáy xã hội 🎮🤡.",
+            f"Mắt nhắm mắt mở đánh như bot tập sự xong đổ thừa tại '{ly_do}'. Nghệ sĩ xiếc eSports đại tài là mày chứ ai 🎪🤡!",
+            f"Chiến thần feed mạng, chúa tể bấm nút đầu hàng, kẻ hủy diệt elo đồng đội chỉ vì '{ly_do}' 🤡🕹️."
+        ]
+    # 4. Học hành / Điểm số / Thi cử / Deadline / Lười / Bài tập / Rớt môn / Bị phạt
+    elif any(k in ly_do_lower for k in ["học", "thi", "điểm", "deadline", "bài tập", "rớt", "toán", "văn", "lười", "f", "trượt", "thầy", "cô"]):
+        roasts = [
+            f"Chữ nghĩa thầy cô trả hết, sách vở không thèm mở mà lên mạng tấu hài '{ly_do}'. Tương lai mày sáng rực như tiền đồ chị Dậu 🎓🤡.",
+            f"Deadline dí sát mông mà vẫn rảnh háng ngồi '{ly_do}'. Bằng Tiến Sĩ Ngành Hề Học trao thẳng cho mày 🎪🤡!",
+            f"Điểm số thì đội sổ mà độ xàm xí vì '{ly_do}' thì đạt giải Quán quân quốc gia 🤡📝."
+        ]
+    # 5. Mõm / Gáy / Xạo / Bốc phét / Ảo tưởng / Sĩ gái / Ra vẻ / Khoe
+    elif any(k in ly_do_lower for k in ["mõm", "gáy", "xạo", "bốc phét", "ảo", "sĩ", "ra vẻ", "chém gió", "phét", "khoe", "nổ"]):
+        roasts = [
+            f"Mồm gáy 8 hướng 4 phương xong bị bắt quả tang tại trận vì cái tội '{ly_do}'. Chiến thần võ mồm, đại sứ chém gió không giấy phép 🤡🌪️.",
+            f"Mày tưởng mày là trùm giang hồ? Không, vì '{ly_do}' mày chỉ là chú hề bán bóng bay dạo ở công viên nước 🎪🤡.",
+            f"Độ xạo lìn của mày vươn tầm vũ trụ khi dám phán '{ly_do}'. Cả rạp xiếc xin phép đứng dậy vỗ tay tán thưởng độ mặt dày 🤡👏."
+        ]
+    # 6. Ngủ / Ăn / Mập / Lùn / Xấu / Điệu / Chảnh / Sủi / Trễ
+    elif any(k in ly_do_lower for k in ["ngủ", "ăn", "mập", "béo", "lùn", "xấu", "chảnh", "sủi", "trễ", "muộn", "bỏ"]):
+        roasts = [
+            f"Chúa tể ngủ nướng, đại sứ sủi kèo vừa tái xuất giang hồ với lý do '{ly_do}'. Hề chúa vô kỷ luật số 1 server 🤡⏰.",
+            f"Bảo bận việc hóa ra là sủi kèo vì '{ly_do}' nằm nhà lướt tóp tóp trong cô đơn. Diễn viên kịch câm xuất sắc 🎪🤡."
+        ]
+    # 7. Mặc định (Khớp chính xác ngữ cảnh)
+    else:
+        roasts = [
+            f"Đỉnh cao của sự tấu hài và ngớ ngẩn chính là cái lý do '{ly_do}'. Rạp Xiếc Trung Ương xin phép cấp bằng khen Hề Chúa cho mày 🤡🎪!",
+            f"Mày nghĩ cái lý do '{ly_do}' nghe ngầu lắm hả? Trong mắt người khác mày chỉ là một rạp xiếc lưu động thôi 🤡.",
+            f"Cuộc đời là một vở kịch lớn, người ta là đạo diễn diễn viên chính, còn mày vì '{ly_do}' mà thành thằng hề phát tờ rơi ngoài cổng 🎪🤡."
+        ]
+
+    return random.choice(roasts)
 
 
 # ================= VIEW TƯƠNG TÁC CHO LỆNH ẨN GIỚI THIỆU BOT =================
@@ -233,7 +319,7 @@ class TrollCog(commands.Cog):
                 "```\n"
                 "🌟 **Chào mừng đến với cỗ máy tấu hài thế hệ mới!** Dưới đây là thông số kỹ thuật và kho vũ khí hủy diệt của bổn tọa:"
             ),
-            color=discord.Color.from_rgb(255, 20, 147)  # Hồng Neon siêu nổi bật
+            color=discord.Color.from_rgb(255, 20, 147)
         )
         if bot_user.avatar:
             embed.set_thumbnail(url=bot_user.avatar.url)
@@ -335,12 +421,12 @@ class TrollCog(commands.Cog):
 
         embed.add_field(
             name="🤡 4. Tính Năng Giải Trí & Troll Học Đường",
-            value="• `/checklop @user`: Đo độ simp / lụy tình từ 0% đến 100% kèm chẩn đoán.\n• `/joker @user <lý_do>`: Tặng danh hiệu hề chúa + văn mẫu Joker.\n• `/spamtag @user <nội_dung> <số_lần>`: Spam tag réo tên với kho 100 câu bựa (1-10 lần, cooldown 45s).\n• `!culi` / `/culi`: Mở hồ sơ danh tính tối mật siêu màu mè!",
+            value="• `/checklop @user`: Đo độ simp / lụy tình từ 0% đến 100% kèm chẩn đoán.\n• `/joker @user <lý_do>`: AI phân tích lý do và tạo văn mẫu Joker châm biếm sát thương cao.\n• `/spamtag @user <nội_dung> <số_lần>`: Spam tag réo tên với kho 100 câu bựa (1-10 lần, cooldown 45s).\n• `!culi` / `/culi`: Mở hồ sơ danh tính tối mật siêu màu mè!",
             inline=False
         )
 
         embed.add_field(
-            name="💸 5. Sổ Ghi Nợ Mặt Dày",
+            name="💸 5. Sổ Ghi NỢ Mặt Dày",
             value="• `/doino @user <số_tiền> <lý_do>`: Ghi sổ nợ kèm 3 nút tương tác đòi tiền.\n• `/so_no`: Xem danh sách top nợ nần nhiều nhất server.",
             inline=False
         )
@@ -586,30 +672,14 @@ class TrollCog(commands.Cog):
         )
         await interaction.response.send_message(embed=embed)
 
-    @app_commands.command(name="joker", description="Trao tặng danh hiệu Hề Chúa và triết lý sâu cay cho một người bạn")
+    # ================= 🤡 LỆNH JOKER ĐÃ ĐƯỢC AI TỰ ĐỘNG PHÂN TÍCH NỘI DUNG =================
+    @app_commands.command(name="joker", description="AI phân tích lý do và tạo văn mẫu Joker châm biếm sâu cay theo ngữ cảnh")
     async def joker(self, interaction: discord.Interaction, user: discord.Member, ly_do: str):
-        quotes = [
-            "🎪 Rạp Xiếc Trung Ương gọi điện mời mày về làm Giám Đốc Danh Dự kìa, diễn xuất sắc quá hề chúa ơi 🤡!",
-            "📱 Người ta bận nhắn tin 'Em ngủ ngon', còn mày ngồi canh xem người ta 'Đang hoạt động' với ai. Chúa tể canh miếu, đại sứ F5 story 🤡!",
-            "🛵 12h đêm phi xe 20 cây số qua mua trà sữa vì crush 'Đang đói', tới nơi thấy người yêu nó ra nhận hộ. Đỉnh cao của sự cống hiến 🤡!",
-            "🎭 Cuộc đời là một vở kịch lớn, người ta là đạo diễn diễn viên chính, còn mày là thằng hề đứng ngoài cổng phát tờ rơi 🤡.",
-            "💄 Mặt mày không cần đánh phấn trắng hay bôi son đỏ đâu, cái bản mặt tự nhiên đã toát lên thần thái hề chúa thượng đẳng rồi 🎪.",
-            "👑 Người ta thả tim story dạo để giữ tương tác, mày tưởng người ta bật đèn xanh nên chuẩn bị sẵn cả tên đặt cho con. Thức tỉnh đi ông cháu 🤡!",
-            "🩸 Joker nhảy múa trên cầu thang gác lại nỗi đau, còn mày nhảy cẫng lên ăn mừng khi crush 'Đã xem' sau 3 ngày bặt vô âm tín 🤡.",
-            "🪞 Nhìn vào gương đi, Batman nhìn vào thấy kẻ thù, còn mày nhìn vào gương thấy một Cây Hài Nhân Dân chưa được trao Huân Chương 🤡.",
-            "🤡 Người ta bảo mày 'Anh rất tốt nhưng em rất tiếc', dịch chuẩn nghĩa đen ra là: 'Mày tốt thì làm culi dắt xe hộ tao nhé'!",
-            "💸 Tiền mày nạp game, quà mày mua tặng gái, cuối cùng gái gọi thằng khác là 'Chồng iu'. Bằng khen Chiến Sĩ Simp Quả Cảm trao tặng cho mày 🎖️🤡.",
-            "🎪 Đừng buồn vì người ta không chọn mày, trong rạp xiếc thì chú hề chỉ để mua vui chứ ai rảnh cưới chú hề bao giờ 🤡.",
-            "🍿 Mày thức đến 2h sáng canh tin nhắn, người ta thức đến 2h sáng để nhắn tin với người yêu nó. Hoàn cảnh tương phản nghệ thuật vãi chưởng 🤡.",
-            "🚗 Người ta ngồi xế hộp uống rượu vang, mày đội mưa ngồi Wave cùi xem story người ta check-in. Thơ mộng đến rơi nước mắt 🤡!",
-            "💊 Uống viên thuốc an thần đi con mồi, người ta 'Seen' tin nhắn từ hôm qua mà mày vẫn ngây thơ nghĩ người ta đang bận ôn thi 🤡.",
-            "🎪 Mày tưởng mày là Joker phản diện DC? Không, mày là chú hề bán bóng bay dạo ở cổng công viên nước 🤡.",
-            "💔 Người ta coi mày là trò đùa, còn mày lại nhiệt tình biến mình thành nguyên một gánh xiếc lưu động. Quá chuyên nghiệp 🎪!",
-            "👑 Phong tặng danh hiệu: 'Đại sứ thương hiệu Michelin - Chiến thần trực đêm - Chúa tể ngắm dấu Chấm Xanh Messenger' 🤡!",
-            "🤡 Tình yêu của mày sáng như ngọn đèn pha, tiếc là người ta rút phích cắm cmnr!",
-            "🎭 Họ cười tôi vì tôi là Joker, tôi cười họ vì họ tưởng tôi quan tâm... nhưng nhìn mày tao cười vì mày quá phế 🤡."
-        ]
-        
+        await interaction.response.defer()
+
+        # Gọi AI hoặc Semantic Contextual Engine để tạo câu khịa khớp 100% với lý do
+        roast_text = await generate_smart_joker_roast(user.display_name, ly_do)
+
         joker_titles = [
             "🤡 HỆ TƯ TƯỞNG HỀ CHÚA THƯỢNG ĐẲNG 🎪",
             "🎪 VINH DANH NGHỆ SĨ ƯU TÚ RẠP XIẾC 🤡",
@@ -620,14 +690,15 @@ class TrollCog(commands.Cog):
         embed = discord.Embed(
             title=random.choice(joker_titles),
             description=f"🎯 **Đối tượng được vinh danh:** {user.mention}\n"
-                        f"📌 **Lý do lập rạp xiếc:** *\"{ly_do}\"*\n\n"
+                        f"📌 **Hành vi tấu hài:** *\"{ly_do}\"*\n\n"
                         f"💬 **Văn mẫu Joker thấm từng tế bào:**\n"
-                        f"> *\"{random.choice(quotes)}\"*",
+                        f"> *\"{roast_text}\"*",
             color=discord.Color.from_rgb(148, 0, 211)
         )
         embed.set_thumbnail(url=CLOWN_ICON_URL)
-        embed.set_footer(text="Gõ /joker @user <lý do> để trao tặng vương miện hề chúa!")
-        await interaction.response.send_message(content=f"🎪 Reng reng! Đã trao vương miện hề cho {user.mention}!", embed=embed)
+        embed.set_footer(text="Gõ /joker @user <lý do> • AI tự động nhận diện và khịa đúng trọng tâm!")
+        
+        await interaction.followup.send(content=f"🎪 Reng reng! Đã trao vương miện hề cho {user.mention}!", embed=embed)
 
     @app_commands.command(name="nemda", description="Ném đá giấu tay / Gửi tâm sự nặc danh (Bí mật 100%)")
     async def nemda(self, interaction: discord.Interaction):
