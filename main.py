@@ -55,7 +55,7 @@ class TrollBot(commands.Bot):
         cogs_dir = Path(__file__).parent / "cogs"
         if cogs_dir.exists() and cogs_dir.is_dir():
             for file in cogs_dir.glob("*.py"):
-                if file.stem not in ["__init__", "quotes_data", "admin_log"]:
+                if file.stem not in ["__init__", "quotes_data"]:
                     cog_name = f"cogs.{file.stem}"
                     try:
                         await self.load_extension(cog_name)

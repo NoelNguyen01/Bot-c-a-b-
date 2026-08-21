@@ -77,9 +77,32 @@ class AdminLogCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
+    @commands.command(name="set_admin_log", aliases=["setadminlog", "adminlog"])
+    @commands.has_permissions(administrator=True)
+    async def cmd_set_admin_log(self, ctx, channel: discord.TextChannel):
+        config = load_config()
+        guild_id = str(ctx.guild.id)
+        if guild_id not in config:
+            config[guild_id] = {}
+        config[guild_id]["admin_log_channel_id"] = channel.id
+        MEMORY_ADMIN_LOGS[guild_id] = channel.id
+        save_config(config)
+
+        await ctx.send(f"✅ Đã thiết lập Kênh Nhật Ký Admin bí mật tại {channel.mention}!\n🔒 *Toàn bộ hoạt động sẽ được ghi nhật ký vào đây.*")
+        await send_log_to_admin(
+            ctx.guild,
+            title="🛡️ KÍCH HOẠT NHẬT KÝ ADMIN THÀNH CÔNG",
+            description=f"Admin {ctx.author.mention} đã liên kết kênh này làm **Kênh Nhật Ký Giám Sát Hoạt Động Của Server**.",
+            color=discord.Color.green(),
+            fields=[
+                ("Người cài đặt", f"{ctx.author.name} ({ctx.author.id})", True),
+                ("Trạng thái", "🟢 Đang ghi nhật ký 24/7", True)
+            ]
+        )
+
     @app_commands.command(name="set_admin_log", description="Cài đặt kênh nhận toàn bộ Nhật Ký Hoạt Động bí mật cho Admin (Admin)")
     @app_commands.default_permissions(administrator=True)
-    async def set_admin_log(self, interaction: discord.Interaction, channel: discord.abc.GuildChannel):
+    async def set_admin_log(self, interaction: discord.Interaction, channel: discord.TextChannel):
         user_perms = interaction.user.guild_permissions
         if not (user_perms.administrator or user_perms.manage_guild or user_perms.manage_channels):
             await interaction.response.send_message("❌ Mày phải có quyền Quản trị viên (Admin) mới được dùng lệnh này!", ephemeral=True)
