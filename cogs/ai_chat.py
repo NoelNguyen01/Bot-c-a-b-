@@ -190,6 +190,29 @@ class AIChatCog(commands.Cog):
                     await message.reply("Ơi cái gì đấy ông cháu? Tag tao mà không nói gì à? 🤡")
                 return
 
+            # Kiểm tra xem có phải yêu cầu bot nói / đọc trong voice không
+            lower_content = clean_content.lower()
+            tts_prefixes = ["nói ", "noi ", "đọc ", "doc ", "phát âm ", "hét lên "]
+            is_tts_request = any(lower_content.startswith(p) for p in tts_prefixes)
+
+            if is_tts_request and message.author.voice and message.author.voice.channel:
+                voice_cog = self.bot.get_cog("VoiceTTSCog")
+                if voice_cog:
+                    text_to_speak = clean_content
+                    for p in tts_prefixes:
+                        if lower_content.startswith(p):
+                            text_to_speak = clean_content[len(p):].strip()
+                            break
+
+                    ok = await voice_cog.speak_text(message.guild, message.author, text_to_speak, auto_join=True)
+                    if ok:
+                        try:
+                            await message.add_reaction("🗣️")
+                        except Exception:
+                            pass
+                        await message.reply(f"🗣️ Đang đọc trong phòng **{message.author.voice.channel.name}**: *{text_to_speak}*")
+                        return
+
             async with message.channel.typing():
                 reply_text = await self.call_gemini_api(clean_content, message.author, message.channel.id, message.guild)
                 chunks = split_text(reply_text)

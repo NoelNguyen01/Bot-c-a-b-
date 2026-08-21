@@ -498,20 +498,55 @@ class VoiceTTSCog(commands.Cog):
         await voice_client.disconnect()
         await interaction.response.send_message("👋 Chị đi đây, lũ hề ở lại vui vẻ nhé!")
 
+    async def speak_text(self, guild: discord.Guild, author: discord.Member, text: str, auto_join: bool = True) -> bool:
+        voice_client = guild.voice_client
+        if not voice_client or not voice_client.is_connected():
+            if auto_join and author.voice and author.voice.channel:
+                try:
+                    voice_client = await author.voice.channel.connect()
+                except Exception as e:
+                    logger.error(f"Lỗi tự động kết nối voice: {e}")
+                    return False
+            else:
+                return False
+
+        clean_text = clean_text_for_tts(text)
+        if not clean_text:
+            return False
+        if len(clean_text) > 600:
+            clean_text = clean_text[:600] + " và còn nhiều chữ nữa..."
+
+        speech_text = f"{author.display_name} nói: {clean_text}"
+        await self.tts_queue.put((guild.id, speech_text, voice_client))
+        return True
+
     @app_commands.command(name="noi", description="Chị Google đọc ngay câu này trong voice")
     async def noi(self, interaction: discord.Interaction, noi_dung: str):
-        voice_client = interaction.guild.voice_client
-        if not voice_client or not voice_client.is_connected():
+        if not interaction.user.voice or not interaction.user.voice.channel:
             await interaction.response.send_message(
-                "❌ Bot chưa vào kênh voice! Hãy dùng `/join` hoặc `!join` trước nhé.",
+                "❌ Bạn phải vào phòng voice trước rồi mới bảo bot đọc được nhé!",
                 ephemeral=True
             )
             return
 
-        clean_text = clean_text_for_tts(noi_dung)
-        speech_text = f"{interaction.user.display_name} nói: {clean_text}"
-        await self.tts_queue.put((interaction.guild.id, speech_text, voice_client))
-        await interaction.response.send_message(f"🗣️ Đã đưa vào hàng chờ đọc: *{clean_text}*", ephemeral=True)
+        ok = await self.speak_text(interaction.guild, interaction.user, noi_dung, auto_join=True)
+        if ok:
+            clean_text = clean_text_for_tts(noi_dung)
+            await interaction.response.send_message(f"🗣️ Đã đưa vào hàng chờ đọc: *{clean_text}*", ephemeral=True)
+        else:
+            await interaction.response.send_message("❌ Không thể kết nối vào phòng voice!", ephemeral=True)
+
+    @commands.command(name="noi", aliases=["doc", "say", "speak"])
+    async def cmd_noi(self, ctx, *, noi_dung: str):
+        if not ctx.author.voice or not ctx.author.voice.channel:
+            await ctx.send("❌ Mày phải vào phòng voice trước rồi mới bảo tao đọc được!")
+            return
+        
+        ok = await self.speak_text(ctx.guild, ctx.author, noi_dung, auto_join=True)
+        if ok:
+            await ctx.message.add_reaction("🗣️")
+        else:
+            await ctx.send("❌ Không thể kết nối vào phòng voice để đọc!")
 
     @commands.command(name="join")
     async def cmd_join(self, ctx):
