@@ -98,15 +98,44 @@ def is_actual_master(user: discord.abc.User, guild: Optional[discord.Guild] = No
     return False
 
 
+import time
+
 class AIChatCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.channel_history = {}
+        self.user_cooldowns = {}
+        self.response_cache = {}  # {query_lower: (reply_text, timestamp)}
+
+    def check_user_cooldown(self, user: discord.abc.User, guild: Optional[discord.Guild] = None) -> tuple[bool, float]:
+        """Kiểm tra rate limit (Master: 1.5s, Thành viên khác: 7.0s)"""
+        now = time.time()
+        uid = user.id
+        is_master = is_actual_master(user, guild)
+        cooldown_limit = 1.5 if is_master else 7.0
+
+        last_time = self.user_cooldowns.get(uid, 0.0)
+        elapsed = now - last_time
+
+        if elapsed < cooldown_limit:
+            return False, cooldown_limit - elapsed
+
+        self.user_cooldowns[uid] = now
+        return True, 0.0
 
     async def call_gemini_api(self, prompt: str, user: discord.abc.User, channel_id: int, guild: Optional[discord.Guild] = None) -> str:
         api_key = os.getenv("GEMINI_API_KEY")
         if not api_key:
             return "❌ Chưa cấu hình `GEMINI_API_KEY`! Vui lòng vào Render -> Environment để thêm API Key nhé."
+
+        # 1. KIỂM TRA BỘ NHỚ ĐỆM (CACHE 10 PHÚT)
+        cache_key = prompt.strip().lower()
+        now = time.time()
+        if cache_key in self.response_cache:
+            cached_text, timestamp = self.response_cache[cache_key]
+            if now - timestamp < 600:  # 10 phút
+                logger.info(f"Đã trả lời từ Cache cho câu hỏi: '{prompt[:30]}...'")
+                return cached_text
 
         if channel_id not in self.channel_history:
             self.channel_history[channel_id] = []
@@ -126,11 +155,16 @@ class AIChatCog(commands.Cog):
             history = history[-6:]
             self.channel_history[channel_id] = history
 
+        # Payload với giới hạn Token an toàn (maxOutputTokens: 600)
         payload = {
             "systemInstruction": {
                 "parts": [{"text": SYSTEM_INSTRUCTION}]
             },
-            "contents": history
+            "contents": history,
+            "generationConfig": {
+                "maxOutputTokens": 600,
+                "temperature": 0.7
+            }
         }
 
         last_error = None
@@ -148,6 +182,8 @@ class AIChatCog(commands.Cog):
                                     reply_text = parts[0].get("text", "").strip()
                                     if reply_text:
                                         history.append({"role": "model", "parts": [{"text": reply_text}]})
+                                        # Lưu vào Cache
+                                        self.response_cache[cache_key] = (reply_text, time.time())
                                         return reply_text
                         else:
                             error_text = await response.text()
@@ -213,6 +249,12 @@ class AIChatCog(commands.Cog):
                         await message.reply(f"🗣️ Đang đọc trong phòng **{message.author.voice.channel.name}**: *{text_to_speak}*")
                         return
 
+            # Kiểm tra Rate limit Cooldown
+            allowed, remaining = self.check_user_cooldown(message.author, message.guild)
+            if not allowed:
+                await message.reply(f"⏳ Từ từ th con lợn! Đợi `{remaining:.1f}s` nữa r hỏi tiếp, spam lắm cháy mịa server bây h 🤡")
+                return
+
             async with message.channel.typing():
                 reply_text = await self.call_gemini_api(clean_content, message.author, message.channel.id, message.guild)
                 chunks = split_text(reply_text)
@@ -226,6 +268,14 @@ class AIChatCog(commands.Cog):
     # ================= SLASH COMMANDS =================
     @app_commands.command(name="ai", description="Trò chuyện hoặc nhờ AI Gemini giải bài tập, làm thơ, tư vấn")
     async def ai_command(self, interaction: discord.Interaction, cau_hoi: str):
+        allowed, remaining = self.check_user_cooldown(interaction.user, interaction.guild)
+        if not allowed:
+            await interaction.response.send_message(
+                f"⏳ Từ từ th con lợn! Đợi `{remaining:.1f}s` nữa r hỏi tiếp, spam lắm cháy mịa server bây h 🤡",
+                ephemeral=True
+            )
+            return
+
         await interaction.response.defer()
         
         reply_text = await self.call_gemini_api(cau_hoi, interaction.user, interaction.channel.id, interaction.guild)
