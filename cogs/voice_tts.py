@@ -402,9 +402,10 @@ class VoiceTTSCog(commands.Cog):
     @app_commands.command(name="set_tts", description="Ghim kênh text chuyên dụng để bot đọc chat trong voice (Admin)")
     @app_commands.default_permissions(administrator=True)
     async def set_tts(self, interaction: discord.Interaction, channel: discord.abc.GuildChannel):
-        user_perms = interaction.user.guild_permissions
-        if not (user_perms.administrator or user_perms.manage_guild or user_perms.manage_channels):
-            await interaction.response.send_message("❌ Mày phải có quyền Quản trị viên (Admin) mới được dùng lệnh này!", ephemeral=True)
+        is_owner = interaction.guild and interaction.guild.owner_id == interaction.user.id
+        is_admin = interaction.user.guild_permissions.administrator
+        if not (is_owner or is_admin):
+            await interaction.response.send_message("❌ Mày phải là Chủ Server (Owner) hoặc có quyền Quản trị viên (Admin) mới được dùng lệnh này!", ephemeral=True)
             return
 
         config = load_config()
@@ -430,9 +431,10 @@ class VoiceTTSCog(commands.Cog):
     @app_commands.command(name="clear_tts", description="Hủy ghim kênh riêng (Bot chỉ đọc trong chat của phòng voice)")
     @app_commands.default_permissions(administrator=True)
     async def clear_tts(self, interaction: discord.Interaction):
-        user_perms = interaction.user.guild_permissions
-        if not (user_perms.administrator or user_perms.manage_guild):
-            await interaction.response.send_message("❌ Mày phải có quyền Admin mới được dùng lệnh này!", ephemeral=True)
+        is_owner = interaction.guild and interaction.guild.owner_id == interaction.user.id
+        is_admin = interaction.user.guild_permissions.administrator
+        if not (is_owner or is_admin):
+            await interaction.response.send_message("❌ Mày phải là Chủ Server (Owner) hoặc có quyền Quản trị viên (Admin) mới được dùng lệnh này!", ephemeral=True)
             return
 
         config = load_config()
@@ -444,8 +446,13 @@ class VoiceTTSCog(commands.Cog):
         await interaction.response.send_message("✅ Đã hủy ghim kênh riêng! Giờ bot chỉ đọc chữ gõ trong khung chat của chính phòng voice.", ephemeral=True)
 
     @commands.command(name="set_tts")
-    @commands.has_permissions(administrator=True)
     async def cmd_set_tts(self, ctx, channel: discord.TextChannel):
+        is_owner = ctx.guild and ctx.guild.owner_id == ctx.author.id
+        is_admin = ctx.author.guild_permissions.administrator
+        if not (is_owner or is_admin):
+            await ctx.send("❌ Mày phải là Chủ Server (Owner) hoặc có quyền Quản trị viên (Admin) mới được dùng lệnh này!")
+            return
+
         config = load_config()
         guild_id = str(ctx.guild.id)
         if guild_id not in config:

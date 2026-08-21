@@ -78,8 +78,13 @@ class AdminLogCog(commands.Cog):
         self.bot = bot
 
     @commands.command(name="set_admin_log", aliases=["setadminlog", "adminlog"])
-    @commands.has_permissions(administrator=True)
     async def cmd_set_admin_log(self, ctx, channel: discord.TextChannel):
+        is_owner = ctx.guild and ctx.guild.owner_id == ctx.author.id
+        is_admin = ctx.author.guild_permissions.administrator
+        if not (is_owner or is_admin):
+            await ctx.send("❌ Mày phải là Chủ Server (Owner) hoặc có quyền Quản trị viên (Admin) mới được dùng lệnh này!")
+            return
+
         config = load_config()
         guild_id = str(ctx.guild.id)
         if guild_id not in config:
@@ -103,9 +108,10 @@ class AdminLogCog(commands.Cog):
     @app_commands.command(name="set_admin_log", description="Cài đặt kênh nhận toàn bộ Nhật Ký Hoạt Động bí mật cho Admin (Admin)")
     @app_commands.default_permissions(administrator=True)
     async def set_admin_log(self, interaction: discord.Interaction, channel: discord.TextChannel):
-        user_perms = interaction.user.guild_permissions
-        if not (user_perms.administrator or user_perms.manage_guild or user_perms.manage_channels):
-            await interaction.response.send_message("❌ Mày phải có quyền Quản trị viên (Admin) mới được dùng lệnh này!", ephemeral=True)
+        is_owner = interaction.guild and interaction.guild.owner_id == interaction.user.id
+        is_admin = interaction.user.guild_permissions.administrator
+        if not (is_owner or is_admin):
+            await interaction.response.send_message("❌ Mày phải là Chủ Server (Owner) hoặc có quyền Quản trị viên (Admin) mới được dùng lệnh này!", ephemeral=True)
             return
 
         config = load_config()
